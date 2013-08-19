@@ -2,6 +2,14 @@
 Changelog for package segbot_navigation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.4 (2013-08-12)
+------------------
+* added a real world navigation file
+* updated and cleaned up visualization config
+* cleaned up launch and configuration files. closes `#6 <https://github.com/utexas-bwi/segbot_apps/issues/6>`_
+* removed confusing map_namespace parameter
+* added map_topic parameter for multi-robot scenarios
+
 0.1.3 (2013-07-16)
 ------------------
 * added missing dependencies (closes `#4 <https://github.com/utexas-bwi/segbot_apps/issues/4>`_). Cleaned up package and cmake files.
