@@ -38,8 +38,10 @@
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
 #include <actionlib/server/simple_action_server.h>
+#include <boost/filesystem.hpp>
 #include <message_filters/subscriber.h>
 #include <move_base_msgs/MoveBaseAction.h>
+#include <multi_level_map_msgs/LevelMetaData.h>
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <tf/message_filter.h>
@@ -60,9 +62,6 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
 
     SegbotLogicalNavigator();
     void execute(const segbot_logical_translator::LogicalNavigationGoalConstPtr &goal);
-    bool initialize_srv(
-           map_mux::ChangeMap::Request &goal,
-           map_mux::ChangeMap::Request &res); 
 
   protected:
 
@@ -82,6 +81,8 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     bool executeNavigationGoal(const geometry_msgs::PoseStamped& pose);
     void odometryHandler(const nav_msgs::Odometry::ConstPtr& odom);
 
+    void currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level);
+
     float robot_x_;
     float robot_y_;
     float robot_yaw_;
@@ -90,13 +91,14 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
 
     boost::shared_ptr<LogicalNavActionServer> execute_action_server_; 
     bool execute_action_server_started_;
-    ros::ServiceServer floor_switch_service_server_;
 
     boost::shared_ptr<actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> > robot_controller_;
 
     boost::shared_ptr<tf::TransformListener> tf_;
     boost::shared_ptr<tf::MessageFilter<nav_msgs::Odometry> > tf_filter_;
     boost::shared_ptr<message_filters::Subscriber<nav_msgs::Odometry> > odom_subscriber_;
+
+    ros::Subscriber current_level_subscriber_;
 
 };
 
@@ -106,9 +108,6 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
   ROS_INFO("SegbotLogicalNavigator: Advertising services!");
 
   ros::param::param("~door_proximity_distance", door_proximity_distance_, 2.0);
-
-  floor_switch_service_server_ = nh_->advertiseService("floor_switch",
-      &SegbotLogicalNavigator::initialize_srv, this);
 
   robot_controller_.reset(
       new actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>(
@@ -127,11 +126,24 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
                                                           "execute_logical_goal",
                                                           boost::bind(&SegbotLogicalNavigator::execute, this, _1),
                                                           false));
+
+  current_level_subscriber_ = nh_->subscribe("level_mux/current_level",
+                                             1, 
+                                             &SegbotLogicalNavigator::currentLevelHandler,
+                                             this);
 }
 
-bool SegbotLogicalNavigator::initialize_srv(map_mux::ChangeMap::Request &goal, map_mux::ChangeMap::Request &res) {
+void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level) {
+  const std::string& data_directory = current_level->data_directory;
+  const std::string& map_file = current_level->map_file;
+  ros::param::set("~map_file", map_file);
+  ros::param::set("~door_file", data_directory + "/doors.yaml");
+  ros::param::set("~location_file", data_directory + "/locations.yaml");
+  std::string objects_file = data_directory + "/objects.yaml";
+  if (boost::filesystem::exists(objects_file)) {
+    ros::param::set("~object_file", objects_file);
+  }
   SegbotLogicalTranslator::initialize();
-  return true;
 }
 
 void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, size_t door_idx) {

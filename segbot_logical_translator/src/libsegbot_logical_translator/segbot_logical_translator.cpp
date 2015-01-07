@@ -60,12 +60,7 @@ namespace segbot_logical_translator {
         "~global_frame_id", global_frame_id_, "/map");
     initialize();
   }
-  bool SegbotLogicalTranslator::initialize_srv(
-        map_mux::ChangeMap::Request &req,
-        map_mux::ChangeMap::Request &res) {
-      initialize();
-      return true;
-  }
+
   void SegbotLogicalTranslator::initialize() {
     ROS_INFO_STREAM("SegbotLogicalTranslator: RE-Initializing...");
 

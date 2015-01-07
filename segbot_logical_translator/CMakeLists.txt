@@ -9,6 +9,7 @@ find_package(catkin REQUIRED
     bwi_planning_common 
     message_filters
     move_base_msgs
+    multi_level_map_msgs
     nav_msgs
     roscpp
     tf
