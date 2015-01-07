@@ -53,6 +53,7 @@ add_executable(segbot_logical_navigator src/nodes/segbot_logical_navigator.cpp)
 target_link_libraries(segbot_logical_navigator 
   ${catkin_LIBRARIES}
   segbot_logical_translator)
+add_dependencies(segbot_logical_navigator segbot_logical_translator_generate_messages_cpp)
  
 install(TARGETS segbot_logical_translator segbot_logical_navigator
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
