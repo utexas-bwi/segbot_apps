@@ -10,6 +10,7 @@ find_package(catkin REQUIRED
     message_filters
     move_base_msgs
     multi_level_map_msgs
+    multi_level_map_utils
     nav_msgs
     roscpp
     tf

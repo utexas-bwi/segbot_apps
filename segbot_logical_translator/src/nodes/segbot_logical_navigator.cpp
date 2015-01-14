@@ -39,9 +39,13 @@
 #include <actionlib/client/terminal_state.h>
 #include <actionlib/server/simple_action_server.h>
 #include <boost/filesystem.hpp>
+#include <boost/foreach.hpp>
 #include <message_filters/subscriber.h>
 #include <move_base_msgs/MoveBaseAction.h>
+#include <multi_level_map_msgs/ChangeCurrentLevel.h>
 #include <multi_level_map_msgs/LevelMetaData.h>
+#include <multi_level_map_msgs/MultiLevelMapData.h>
+#include <multi_level_map_utils/utils.h>
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <tf/message_filter.h>
@@ -87,6 +91,7 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     void odometryHandler(const nav_msgs::Odometry::ConstPtr& odom);
 
     void currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level);
+    void multimapHandler(const multi_level_map_msgs::MultiLevelMapData::ConstPtr& multimap);
 
     float robot_x_;
     float robot_y_;
@@ -105,8 +110,11 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     boost::shared_ptr<message_filters::Subscriber<nav_msgs::Odometry> > odom_subscriber_;
 
     ros::Subscriber current_level_subscriber_;
+    ros::Subscriber multimap_subscriber_;
     ros::ServiceClient change_level_client_;
     bool change_level_client_available_;
+    std::vector<multi_level_map_msgs::LevelMetaData> all_levels_;
+    std::map<std::string, std::map<std::string, geometry_msgs::Pose> > level_to_objects_map_;
 
 };
 
@@ -140,10 +148,10 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
                                              &SegbotLogicalNavigator::currentLevelHandler,
                                              this);
 
-  bool change_level_client_available_ = ros::service::waitForService("level_mux/change_current_level", ros::Duration(15.0));
-  if (change_level_client_available_) {
-    change_level_client_ = nh_->serviceClient<multi_level_map_msgs::ChangeCurrentLevel>("level_mux/change_current_level");
-  }
+  multimap_subscriber_ = nh_->subscribe("map_metadata",
+                                        1, 
+                                        &SegbotLogicalNavigator::currentLevelHandler,
+                                        this);
 
 }
 
@@ -161,6 +169,24 @@ void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::Lev
     }
     SegbotLogicalTranslator::initialize();
   }
+}
+
+void SegbotLogicalNavigator::multimapHandler(const multi_level_map_msgs::MultiLevelMapData::ConstPtr& multimap) {
+
+  // Read in the objects for each level.
+  BOOST_FOREACH(const multi_level_map_msgs::LevelMetaData &level, multimap->levels) {
+    std::string objects_file = level.data_directory + "/objects.yaml";
+    bwi_planning_common::readObjectApproachFile(objects_file, level_to_objects_map_[level.level_id]);
+  }
+
+  // Start the change level service client.
+  if (!change_level_client_available_) {
+    bool change_level_client_available_ = ros::service::waitForService("level_mux/change_current_level", ros::Duration(5.0));
+    if (change_level_client_available_) {
+      change_level_client_ = nh_->serviceClient<multi_level_map_msgs::ChangeCurrentLevel>("level_mux/change_current_level");
+    }
+  }
+  
 }
 
 void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, size_t door_idx) {
@@ -352,25 +378,47 @@ bool SegbotLogicalNavigator::changeFloor(const std::string& floor_name,
   error_message = "";
   observations.clear();
 
-  // First attempt to change the level to desired floor_name.
-  if (current_level_id_ == floor_name) {
+  // Make sure we can change floors and all arguments are correct.
+  if (change_level_client_available_) {
+    error_message = "SegbotLogicalNavigator has not received the multimap. Cannot change floors!";
+    return false;
+  } else if (current_level_id_ == floor_name) {
     error_message = "The robot is already on " + floor_name + "!";
+    return false;
+  } else if (level_to_objects_map_.find(floor_name) == level_to_objects_map_.end()) {
+    error_message = "Floor " + floor_name + " does not exist!";
+    return false;
+  } else if (level_to_objects_map_[floor_name].find(new_start_loc) == level_to_objects_map_[floor_name].end()) {
+    error_message = "Location " + new_start_loc + " on floor " + floor_name + " has not been defined as a valid object!";
     return false;
   }
 
-  multi_level_map_utils::ChangeCurrentLevel srv;
-  srv.
+  multi_level_map_msgs::ChangeCurrentLevel srv;
+  srv.request.new_level_id = floor_name;
+  srv.request.publish_initial_pose = true;
+  srv.request.initial_pose.header.stamp = ros::Time::now();
+  srv.request.initial_pose.header.frame_id = multi_level_map::frameIdFromLevelId(floor_name);
+  srv.request.initial_pose.pose.pose = level_to_objects_map_[floor_name][new_start_loc];
+  srv.request.initial_pose.pose.covariance[0] = 1.0f;
+  srv.request.initial_pose.pose.covariance[7] = 1.0f;
+  srv.request.initial_pose.pose.covariance[35] = 1.0f;
+  
+  if (change_level_client_.call(srv)) {
+    if (!srv.response.success) {
+      error_message = srv.response.error_message;
+      return false;
+    }
 
-  // TODO: Don't have the initial pose ready! Will have to subscribe to multi-map and read in obj file for each level to
-  // get initialpose location. Then make one call here.
+    // Yea! the call succeeded! Wait for current_level_id_ to be changed once everything gets updated.
+    ros::Rate r(1);
+    while (current_level_id_ != floor_name) r.sleep();
 
-  if (object_approach_map_.find(object_name) != object_approach_map_.end()) {
-    geometry_msgs::PoseStamped pose;
-    pose.header.stamp = ros::Time::now();
-    pose.header.frame_id = global_frame_id_;
-    pose.pose = object_approach_map_[object_name];
-    executeNavigationGoal(pose);
-
+    // Publish the observable fluents
+    senseState(observations);
+    return true;
+  } else {
+    error_message = "ChangeCurrentLevel service call failed for unknown reason.";
+    return false;
   }
 }
 
