@@ -78,6 +78,11 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
         std::vector<PlannerAtom>& observations,
         std::string& error_message);
 
+    bool changeFloor(const std::string& floor_name,
+        const std::string& new_start_loc,
+        std::vector<PlannerAtom>& observations,
+        std::string& error_message);
+
     bool executeNavigationGoal(const geometry_msgs::PoseStamped& pose);
     void odometryHandler(const nav_msgs::Odometry::ConstPtr& odom);
 
@@ -86,6 +91,7 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     float robot_x_;
     float robot_y_;
     float robot_yaw_;
+    std::string current_level_id_;
 
     double door_proximity_distance_;
 
@@ -99,11 +105,13 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     boost::shared_ptr<message_filters::Subscriber<nav_msgs::Odometry> > odom_subscriber_;
 
     ros::Subscriber current_level_subscriber_;
+    ros::ServiceClient change_level_client_;
+    bool change_level_client_available_;
 
 };
 
 SegbotLogicalNavigator::SegbotLogicalNavigator() : 
-    robot_x_(0), robot_y_(0), robot_yaw_(0), execute_action_server_started_(false) {
+    robot_x_(0), robot_y_(0), robot_yaw_(0), current_level_id_(""), execute_action_server_started_(false) {
 
   ROS_INFO("SegbotLogicalNavigator: Advertising services!");
 
@@ -131,19 +139,28 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
                                              1, 
                                              &SegbotLogicalNavigator::currentLevelHandler,
                                              this);
+
+  bool change_level_client_available_ = ros::service::waitForService("level_mux/change_current_level", ros::Duration(15.0));
+  if (change_level_client_available_) {
+    change_level_client_ = nh_->serviceClient<multi_level_map_msgs::ChangeCurrentLevel>("level_mux/change_current_level");
+  }
+
 }
 
 void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level) {
-  const std::string& data_directory = current_level->data_directory;
-  const std::string& map_file = current_level->map_file;
-  ros::param::set("~map_file", map_file);
-  ros::param::set("~door_file", data_directory + "/doors.yaml");
-  ros::param::set("~location_file", data_directory + "/locations.yaml");
-  std::string objects_file = data_directory + "/objects.yaml";
-  if (boost::filesystem::exists(objects_file)) {
-    ros::param::set("~object_file", objects_file);
+  if (current_level_id_ != current_level->level_id) {
+    current_level_id_ = current_level->level_id;
+    const std::string& data_directory = current_level->data_directory;
+    const std::string& map_file = current_level->map_file;
+    ros::param::set("~map_file", map_file);
+    ros::param::set("~door_file", data_directory + "/doors.yaml");
+    ros::param::set("~location_file", data_directory + "/locations.yaml");
+    std::string objects_file = data_directory + "/objects.yaml";
+    if (boost::filesystem::exists(objects_file)) {
+      ros::param::set("~object_file", objects_file);
+    }
+    SegbotLogicalTranslator::initialize();
   }
-  SegbotLogicalTranslator::initialize();
 }
 
 void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, size_t door_idx) {
@@ -327,6 +344,36 @@ bool SegbotLogicalNavigator::approachObject(const std::string& object_name,
   return false;
 }
 
+bool SegbotLogicalNavigator::changeFloor(const std::string& floor_name,
+                                         const std::string& new_start_loc,
+                                         std::vector<PlannerAtom>& observations,
+                                         std::string& error_message) {
+
+  error_message = "";
+  observations.clear();
+
+  // First attempt to change the level to desired floor_name.
+  if (current_level_id_ == floor_name) {
+    error_message = "The robot is already on " + floor_name + "!";
+    return false;
+  }
+
+  multi_level_map_utils::ChangeCurrentLevel srv;
+  srv.
+
+  // TODO: Don't have the initial pose ready! Will have to subscribe to multi-map and read in obj file for each level to
+  // get initialpose location. Then make one call here.
+
+  if (object_approach_map_.find(object_name) != object_approach_map_.end()) {
+    geometry_msgs::PoseStamped pose;
+    pose.header.stamp = ros::Time::now();
+    pose.header.frame_id = global_frame_id_;
+    pose.pose = object_approach_map_[object_name];
+    executeNavigationGoal(pose);
+
+  }
+}
+
 bool SegbotLogicalNavigator::senseDoor(const std::string& door_name, 
     std::vector<PlannerAtom>& observations,
     std::string& error_message) {
@@ -364,6 +411,8 @@ void SegbotLogicalNavigator::execute(const segbot_logical_translator::LogicalNav
   } else if (goal->command.name == "goto") {
     res.success = approachObject(goal->command.value[0], res.observations,
         res.status);
+  } else if (goal->command.name == "changefloor") {
+    res.success = changeFloor(goal->command.value[0], goal->command.value[0], res.observations, res.status);
   } else {
     res.success = true;
     res.status = "";
