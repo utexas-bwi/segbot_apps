@@ -1,6 +1,7 @@
 <launch>
 
   <arg name="map_topic" default="/map" />
+  <arg name="move_base_server" default="move_base" />
   <arg name="debug" default="false" />
   <arg if="$(arg debug)" name="prefix" value="gdb -ex run --args" />
   <arg unless="$(arg debug)" name="prefix" value="" />
@@ -20,6 +21,8 @@
     <param name="planner_frequency" value="0.5"/>
     <param name="planner_patience" value="5"/>
     <param name="clearing_rotation_allowed" value="true"/>
+
+    <remap from="move_base" to="$(arg move_base_server)" />
   </node>
 
 </launch>
