@@ -81,13 +81,17 @@ namespace segbot_logical_translator {
     }
 
     std::string door_file = bwi_planning_common::getDoorsFileLocationFromDataDirectory(data_directory);
+    ROS_INFO_STREAM("SegbotLogicalTranslator: Reading door file: " + door_file);
     bwi_planning_common::readDoorFile(door_file, doors_);
 
     std::string location_file = bwi_planning_common::getLocationsFileLocationFromDataDirectory(data_directory);
+    ROS_INFO_STREAM("SegbotLogicalTranslator: Reading locations file: " + location_file);
     bwi_planning_common::readLocationFile(location_file, locations_, location_map_);
 
     std::string object_file = bwi_planning_common::getObjectsFileLocationFromDataDirectory(data_directory);
+    ROS_INFO_STREAM("SegbotLogicalTranslator: Checking if objects file exists: " + object_file);
     if (boost::filesystem::exists(object_file)) {
+      ROS_INFO_STREAM("SegbotLogicalTranslator:   Objects file exists. Reading now!");
       bwi_planning_common::readObjectApproachFile(object_file, object_approach_map_);
     }
 

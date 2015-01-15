@@ -150,7 +150,7 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
 
   multimap_subscriber_ = nh_->subscribe("map_metadata",
                                         1, 
-                                        &SegbotLogicalNavigator::currentLevelHandler,
+                                        &SegbotLogicalNavigator::multimapHandler,
                                         this);
 
 }
