@@ -72,7 +72,7 @@ namespace segbot_logical_translator {
       bool isRobotBesideDoor(
           const bwi::Point2f& current_location,
           float yaw, float threshold, size_t idx);
-      void initialize();
+      bool initialize();
 
       inline bool getObjectApproachLocation(const std::string& object_name,
           geometry_msgs::Pose& pose) {

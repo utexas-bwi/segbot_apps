@@ -119,7 +119,8 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
 };
 
 SegbotLogicalNavigator::SegbotLogicalNavigator() : 
-    robot_x_(0), robot_y_(0), robot_yaw_(0), current_level_id_(""), execute_action_server_started_(false) {
+    robot_x_(0), robot_y_(0), robot_yaw_(0), current_level_id_(""), execute_action_server_started_(false),
+    change_level_client_available_(false) {
 
   ROS_INFO("SegbotLogicalNavigator: Advertising services!");
 
@@ -157,10 +158,12 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
 
 void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level) {
   if (current_level_id_ != current_level->level_id) {
-    current_level_id_ = current_level->level_id;
     ros::param::set("~map_file", current_level->map_file);
     ros::param::set("~data_directory", current_level->data_directory);
-    SegbotLogicalTranslator::initialize();
+    if (SegbotLogicalTranslator::initialize()) {
+      // Once the translator is initialized, update the current level id.
+      current_level_id_ = current_level->level_id;
+    }
   }
 }
 
@@ -174,7 +177,7 @@ void SegbotLogicalNavigator::multimapHandler(const multi_level_map_msgs::MultiLe
 
   // Start the change level service client.
   if (!change_level_client_available_) {
-    bool change_level_client_available_ = ros::service::waitForService("level_mux/change_current_level", ros::Duration(5.0));
+    change_level_client_available_ = ros::service::waitForService("level_mux/change_current_level", ros::Duration(5.0));
     if (change_level_client_available_) {
       change_level_client_ = nh_->serviceClient<multi_level_map_msgs::ChangeCurrentLevel>("level_mux/change_current_level");
     }
@@ -372,7 +375,7 @@ bool SegbotLogicalNavigator::changeFloor(const std::string& floor_name,
   observations.clear();
 
   // Make sure we can change floors and all arguments are correct.
-  if (change_level_client_available_) {
+  if (!change_level_client_available_) {
     error_message = "SegbotLogicalNavigator has not received the multimap. Cannot change floors!";
     return false;
   } else if (current_level_id_ == floor_name) {
@@ -453,7 +456,7 @@ void SegbotLogicalNavigator::execute(const segbot_logical_translator::LogicalNav
     res.success = approachObject(goal->command.value[0], res.observations,
         res.status);
   } else if (goal->command.name == "changefloor") {
-    res.success = changeFloor(goal->command.value[0], goal->command.value[0], res.observations, res.status);
+    res.success = changeFloor(goal->command.value[0], goal->command.value[1], res.observations, res.status);
   } else {
     res.success = true;
     res.status = "";

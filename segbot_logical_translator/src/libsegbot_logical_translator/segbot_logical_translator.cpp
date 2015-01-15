@@ -62,7 +62,7 @@ namespace segbot_logical_translator {
     initialize();
   }
 
-  void SegbotLogicalTranslator::initialize() {
+  bool SegbotLogicalTranslator::initialize() {
     ROS_INFO_STREAM("SegbotLogicalTranslator: RE-Initializing...");
 
     std::string map_file, data_directory;
@@ -99,6 +99,8 @@ namespace segbot_logical_translator {
     nav_msgs::OccupancyGrid grid;
     mapper_->getMap(grid);
     info_ = grid.info;
+
+    return true;
   }
 
   bool SegbotLogicalTranslator::isDoorOpen(size_t idx) {
