@@ -39,6 +39,7 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 #include <bwi_mapper/map_utils.h>
 #include <bwi_mapper/point_utils.h>
@@ -64,17 +65,13 @@ namespace segbot_logical_translator {
   void SegbotLogicalTranslator::initialize() {
     ROS_INFO_STREAM("SegbotLogicalTranslator: RE-Initializing...");
 
-    std::string map_file, door_file, location_file;
+    std::string map_file, data_directory;
     std::vector<std::string> required_parameters;
     if (!ros::param::get("~map_file", map_file)) {
       required_parameters.push_back("~map_file");
     }
-    if (!ros::param::get("~door_file", door_file)) {
-      required_parameters.push_back("~door_file");
-    }
-    if (!ros::param::get("~location_file", location_file)) {
-      required_parameters.push_back("~location_file");
-      ROS_INFO_STREAM("SegbotLogicalTranslator: changed location file");
+    if (!ros::param::get("~data_directory", data_directory)) {
+      required_parameters.push_back("~data_directory");
     }
     if (required_parameters.size() != 0) {
       std::string message = "SegbotLogicalTranslator: Required parameters [" + 
@@ -83,22 +80,21 @@ namespace segbot_logical_translator {
       throw std::runtime_error(message);
     }
 
-    std::string object_file;
-    if (ros::param::get("~object_file", object_file)) {
-      ROS_INFO_STREAM("Reading in object file from: " << object_file);
-      bwi_planning_common::readObjectApproachFile( object_file,
-          object_approach_map_);
-    }
+    std::string door_file = bwi_planning_common::getDoorsFileLocationFromDataDirectory(data_directory);
     bwi_planning_common::readDoorFile(door_file, doors_);
-    bwi_planning_common::readLocationFile(location_file, 
-        locations_, location_map_);
+
+    std::string location_file = bwi_planning_common::getLocationsFileLocationFromDataDirectory(data_directory);
+    bwi_planning_common::readLocationFile(location_file, locations_, location_map_);
+
+    std::string object_file = bwi_planning_common::getObjectsFileLocationFromDataDirectory(data_directory);
+    if (boost::filesystem::exists(object_file)) {
+      bwi_planning_common::readObjectApproachFile(object_file, object_approach_map_);
+    }
+
     mapper_.reset(new bwi_mapper::MapLoader(map_file));
     nav_msgs::OccupancyGrid grid;
     mapper_->getMap(grid);
     info_ = grid.info;
-
-    ROS_INFO("Map_statistics  Height:%d Width:%d" , info_.height, info_.width);
-    ROS_INFO("Map_statistics  LocationsArraySize:%d" , (int)location_map_.size());
   }
 
   bool SegbotLogicalTranslator::isDoorOpen(size_t idx) {

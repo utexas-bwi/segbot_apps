@@ -158,15 +158,8 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
 void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level) {
   if (current_level_id_ != current_level->level_id) {
     current_level_id_ = current_level->level_id;
-    const std::string& data_directory = current_level->data_directory;
-    const std::string& map_file = current_level->map_file;
-    ros::param::set("~map_file", map_file);
-    ros::param::set("~door_file", data_directory + "/doors.yaml");
-    ros::param::set("~location_file", data_directory + "/locations.yaml");
-    std::string objects_file = data_directory + "/objects.yaml";
-    if (boost::filesystem::exists(objects_file)) {
-      ros::param::set("~object_file", objects_file);
-    }
+    ros::param::set("~map_file", current_level->map_file);
+    ros::param::set("~data_directory", current_level->data_directory);
     SegbotLogicalTranslator::initialize();
   }
 }
