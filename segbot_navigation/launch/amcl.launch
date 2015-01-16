@@ -4,7 +4,7 @@
   <arg name="map_service" default="static_map" />
   <arg name="map_topic" default="map_localization" />
 
-  <arg name="scan_topic" default="scan" />
+  <arg name="scan_topic" default="scan_filtered" />
 
   <arg name="initial_pose_x" default="0.0" />
   <arg name="initial_pose_y" default="0.0" />
@@ -61,7 +61,7 @@
     <param name="laser_lambda_short" value="0.1"/>
     <param name="laser_model_type" value="likelihood_field"/>
     <param name="laser_max_beams" value="60"/>
-    <param name="laser_max_range" value="5.0"/>
+    <param name="laser_max_range" value="20.0"/>
     <param name="laser_likelihood_max_dist" value="2.0"/>
     
     <!-- <param name="laser_model_type" value="beam"/> -->
