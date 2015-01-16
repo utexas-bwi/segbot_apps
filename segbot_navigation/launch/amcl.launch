@@ -14,16 +14,11 @@
   <arg name="base_frame_id" default="base_footprint" />
   <arg name="odom_frame_id" default="odom" />
 
-  <arg name="map_file_localization" default="$(find bwi_kr)/maps/map_whole2_with_elevators_new.yaml" />
-
-
-  <!-- run a separate map_server to provide amcl a map for localization -->
-  <node name="map_server_localization" pkg="map_server" type="map_server" args="$(arg map_file_localization)">
-
-    <remap from="map" to="map_localization" />
-
-  </node>
-
+  <arg name="odom_alpha1" default = "0.4" />
+  <arg name="odom_alpha2" default = "0.4" />
+  <arg name="odom_alpha3" default = "0.4" />
+  <arg name="odom_alpha4" default = "0.4" />
+  <arg name="odom_alpha5" default = "0.4" />
 
   <!-- run amcl -->
   <node pkg="amcl" type="amcl" name="amcl">
@@ -42,14 +37,14 @@
     
     
     <param name="odom_model_type" value="diff"/>
-    <param name="odom_alpha5" value="0.1"/>
+    <param name="odom_alpha5" value="$(arg odom_alpha5)"/>
    
-    <param name="odom_alpha1" value="0.4"/>
-    <param name="odom_alpha2" value="0.4"/>
+    <param name="odom_alpha1" value="$(arg odom_alpha1)"/>
+    <param name="odom_alpha2" value="$(arg odom_alpha2)"/>
    
     <!-- translation std dev, m -->
-    <param name="odom_alpha3" value="0.4"/>
-    <param name="odom_alpha4" value="0.4"/>
+    <param name="odom_alpha3" value="$(arg odom_alpha3)"/>
+    <param name="odom_alpha4" value="$(arg odom_alpha4)"/>
     
    
    
@@ -68,7 +63,6 @@
     
     <param name="update_min_d" value="0.25"/>
     <param name="update_min_a" value="0.2"/>
-    <param name="odom_frame_id" value="odom"/>
     <param name="resample_interval" value="1"/>
     
     <!-- Increase tolerance because the computer can get quite busy -->

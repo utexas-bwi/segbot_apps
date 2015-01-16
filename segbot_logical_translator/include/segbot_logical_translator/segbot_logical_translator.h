@@ -42,7 +42,7 @@
 #include <ros/ros.h>
 #include <boost/shared_ptr.hpp>
 
-#include <bwi_mapper/map_loader.h>
+#include <bwi_mapper/path_finder.h>
 #include <bwi_planning_common/structures.h>
 #include <bwi_planning_common/utils.h>
 #include <bwi_tools/point.h>
@@ -127,15 +127,21 @@ namespace segbot_logical_translator {
       std::string global_frame_id_;
 
       std::vector<bwi_planning_common::Door> doors_;
+      std::vector<bwi_mapper::PathFinder> door_approachable_space_1_; 
+      std::vector<bwi_mapper::PathFinder> door_approachable_space_2_; 
+
       std::vector<std::string> locations_;
       std::vector<int32_t> location_map_;
       std::map<std::string, geometry_msgs::Pose> object_approach_map_;
 
-      boost::shared_ptr <bwi_mapper::MapLoader> mapper_;
+      nav_msgs::OccupancyGrid map_;
+      nav_msgs::OccupancyGrid map_with_doors_;
+      nav_msgs::OccupancyGrid inflated_map_with_doors_;
       nav_msgs::MapMetaData info_;
 
       boost::shared_ptr<ros::NodeHandle> nh_;
       ros::ServiceClient make_plan_client_;
+      bool make_plan_client_initialized_;
 
   }; /* SegbotLogicalTranslator */
   

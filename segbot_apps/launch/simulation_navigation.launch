@@ -22,9 +22,9 @@
     <arg name="y" value="8.0" />
     <arg name="map_frame" value="level_mux/map" /> 
     <arg name="map_service" value="level_mux/static_map" />                                                                       
-    <arg name="map_topic" value="level_mux/map" />                                                                       
+    <arg name="map_topic" value="segbot_logical_navigator/map" />                                                                       
     <arg name="launch_localization" value="true" />                                                                    
-    <arg name="use_fake_localization" value="true" />                                                                    
+    <arg name="use_fake_localization" value="false" />                                                                    
     <arg name="move_base_server" value="move_base_interruptable" />
     <arg name="launch_move_base" value="true" />                                                                       
     <arg name="use_full_gazebo_model" value="false" />
