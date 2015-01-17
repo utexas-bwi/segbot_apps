@@ -110,6 +110,7 @@ namespace segbot_logical_translator {
       door_approachable_space_1_.push_back(bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt_1));
       const bwi_mapper::Point2d approach_pt_2(bwi_mapper::toGrid(door.approach_points[1], info_));
       door_approachable_space_2_.push_back(bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt_2));
+      ROS_INFO_STREAM("Reachable space found for single door!");
     }
 
     return true;
