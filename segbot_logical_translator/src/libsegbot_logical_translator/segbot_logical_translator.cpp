@@ -101,17 +101,10 @@ namespace segbot_logical_translator {
     // Inflating map by 20cm should get rid of any tiny paths to the goal.
     bwi_mapper::inflateMap(0.2, map_with_doors_, inflated_map_with_doors_);
 
-    // For every door approach point, calculate reachable space.
-    ROS_INFO_STREAM("Finding reachable space via approach points.");
+    // We'll do lazy initialization of the approachable space. Just clear it for now, and we'll populate it as 
+    // necessary.
     door_approachable_space_1_.clear();
     door_approachable_space_2_.clear();
-    BOOST_FOREACH(const bwi_planning_common::Door& door, doors_) {
-      const bwi_mapper::Point2d approach_pt_1(bwi_mapper::toGrid(door.approach_points[0], info_));
-      door_approachable_space_1_.push_back(bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt_1));
-      const bwi_mapper::Point2d approach_pt_2(bwi_mapper::toGrid(door.approach_points[1], info_));
-      door_approachable_space_2_.push_back(bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt_2));
-      ROS_INFO_STREAM("Reachable space found for single door!");
-    }
 
     return true;
   }
@@ -205,13 +198,25 @@ namespace segbot_logical_translator {
       return false;
     }
 
+    // See if we've calculated the approachable space for this door.
+    if (door_approachable_space_1_.find(idx) == door_approachable_space_1_.end()) {
+      const bwi_planning_common::Door& door = doors_[idx];
+      const bwi_mapper::Point2d approach_pt_1(bwi_mapper::toGrid(door.approach_points[0], info_));
+      door_approachable_space_1_[idx] = boost::shared_ptr<bwi_mapper::PathFinder>(new bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt_1));
+    }
+    if (door_approachable_space_2_.find(idx) == door_approachable_space_2_.end()) {
+      const bwi_planning_common::Door& door = doors_[idx];
+      const bwi_mapper::Point2d approach_pt_2(bwi_mapper::toGrid(door.approach_points[1], info_));
+      door_approachable_space_2_[idx] = boost::shared_ptr<bwi_mapper::PathFinder>(new bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt_2));
+    }
+
     // Find the approach point to which we can find a path. If both approach points can be reached, fine the approach
     // point which is closer. 
     bwi_mapper::Point2d grid(bwi_mapper::toGrid(current_location, info_));
-    int distance_1 = door_approachable_space_1_[idx].getManhattanDistance(grid);
-    int distance_2 = door_approachable_space_2_[idx].getManhattanDistance(grid);
+    int distance_1 = door_approachable_space_1_[idx]->getManhattanDistance(grid);
+    int distance_2 = door_approachable_space_2_[idx]->getManhattanDistance(grid);
     if (distance_1 >= 0 || distance_2 >= 0) {
-      if (distance_1 < distance_2 || distance_2 < 0) {
+      if (distance_1 >= 0 && (distance_1 < distance_2 || distance_2 < 0)) {
         point = doors_[idx].approach_points[0];
         yaw = doors_[idx].approach_yaw[0];
       } else {
@@ -237,12 +242,13 @@ namespace segbot_logical_translator {
     float unused_approach_yaw;
     bool door_approachable = getApproachPoint(idx, current_location, approach_point, unused_approach_yaw);
     if (door_approachable) {
-      if (approach_point == doors_[idx].approach_points[0]) {
+      if (approach_point.x == doors_[idx].approach_points[0].x &&
+          approach_point.y == doors_[idx].approach_points[0].y) {
         point = doors_[idx].approach_points[1];
-        yaw = doors_[idx].approach_yaw[1];
+        yaw = doors_[idx].approach_yaw[1] + M_PI;
       } else {
         point = doors_[idx].approach_points[0];
-        yaw = doors_[idx].approach_yaw[0];
+        yaw = doors_[idx].approach_yaw[0] + M_PI;
       }
       return true;
     }

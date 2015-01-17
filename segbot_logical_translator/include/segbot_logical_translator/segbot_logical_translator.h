@@ -127,8 +127,8 @@ namespace segbot_logical_translator {
       std::string global_frame_id_;
 
       std::vector<bwi_planning_common::Door> doors_;
-      std::vector<bwi_mapper::PathFinder> door_approachable_space_1_; 
-      std::vector<bwi_mapper::PathFinder> door_approachable_space_2_; 
+      std::map<int, boost::shared_ptr<bwi_mapper::PathFinder> > door_approachable_space_1_; 
+      std::map<int, boost::shared_ptr<bwi_mapper::PathFinder> > door_approachable_space_2_; 
 
       std::vector<std::string> locations_;
       std::vector<int32_t> location_map_;

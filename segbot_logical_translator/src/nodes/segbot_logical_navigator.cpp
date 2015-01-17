@@ -333,20 +333,16 @@ bool SegbotLogicalNavigator::approachDoor(const std::string& door_name,
     bool door_approachable = false;
 
     if (!gothrough) {
-      if (!last_map_published_with_doors_) {
-        publishNavigationMap(true);
-      }
+      publishNavigationMap(true);
       door_approachable = getApproachPoint(door_idx, bwi::Point2f(robot_x_, robot_y_), approach_pt, approach_yaw);
     } else {
-      if (last_map_published_with_doors_) {
-        publishNavigationMap(false);
-      }
+      publishNavigationMap(false);
       door_approachable = getThroughDoorPoint(door_idx, bwi::Point2f(robot_x_, robot_y_), approach_pt, approach_yaw);
     }
 
     // TODO subscribe to the costmap to make sure the map gets updated and get rid of this hack!
-    // Sleep for 2 seconds to make sure the map gets updated.
-    boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+    // Sleep for 1 second to make sure the map gets updated.
+    boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
 
     if (door_approachable) {
       geometry_msgs::PoseStamped pose;
@@ -354,11 +350,15 @@ bool SegbotLogicalNavigator::approachDoor(const std::string& door_name,
       pose.header.frame_id = global_frame_id_;
       pose.pose.position.x = approach_pt.x;
       pose.pose.position.y = approach_pt.y;
+      std::cout << "approaching " << approach_pt.x << "," << approach_pt.y << std::endl;
       tf::quaternionTFToMsg(
           tf::createQuaternionFromYaw(approach_yaw), pose.pose.orientation); 
       bool success = executeNavigationGoal(pose);
 
-      // Publish the observable fluents
+      // Publish the observable fluents. Since we're likely going to sense the door, make sure the no-doors map was
+      // published.
+      publishNavigationMap(false);
+      boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
       senseState(observations, door_idx);
 
       return success;
@@ -379,9 +379,7 @@ bool SegbotLogicalNavigator::approachObject(const std::string& object_name,
 
   if (object_approach_map_.find(object_name) != object_approach_map_.end()) {
 
-    if (!last_map_published_with_doors_) {
-      publishNavigationMap(true);
-    }
+    publishNavigationMap(true);
 
     geometry_msgs::PoseStamped pose;
     pose.header.stamp = ros::Time::now();
