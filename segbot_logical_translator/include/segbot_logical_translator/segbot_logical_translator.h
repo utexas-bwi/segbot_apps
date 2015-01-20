@@ -74,6 +74,9 @@ namespace segbot_logical_translator {
           float yaw, float threshold, size_t idx);
       bool initialize();
 
+      bool isObjectApproachable(const std::string& object_name, 
+          const bwi::Point2f& current_location);
+
       inline bool getObjectApproachLocation(const std::string& object_name,
           geometry_msgs::Pose& pose) {
         if (object_approach_map_.find(object_name) ==
@@ -133,6 +136,7 @@ namespace segbot_logical_translator {
       std::vector<std::string> locations_;
       std::vector<int32_t> location_map_;
       std::map<std::string, geometry_msgs::Pose> object_approach_map_;
+      std::map<std::string, boost::shared_ptr<bwi_mapper::PathFinder> > object_approachable_space_;
 
       nav_msgs::OccupancyGrid map_;
       nav_msgs::OccupancyGrid map_with_doors_;

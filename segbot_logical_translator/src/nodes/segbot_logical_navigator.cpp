@@ -378,6 +378,11 @@ bool SegbotLogicalNavigator::approachObject(const std::string& object_name,
   observations.clear();
 
   if (object_approach_map_.find(object_name) != object_approach_map_.end()) {
+    
+    if (!isObjectApproachable(object_name, bwi::Point2f(robot_x_, robot_y_))) {
+      error_message = "Cannot interact with " + object_name + " from the robot's current location.";
+      return false;
+    }
 
     publishNavigationMap(true);
 

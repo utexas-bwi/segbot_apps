@@ -105,6 +105,7 @@ namespace segbot_logical_translator {
     // necessary.
     door_approachable_space_1_.clear();
     door_approachable_space_2_.clear();
+    object_approachable_space_.clear();
 
     return true;
   }
@@ -228,6 +229,21 @@ namespace segbot_logical_translator {
 
     /* The door is not approachable from the current location */
     return false;
+  }
+
+  bool SegbotLogicalTranslator::isObjectApproachable(const std::string& object_name,
+                                                     const bwi_mapper::Point2f& current_location) {
+
+    if (object_approachable_space_.find(object_name) == object_approachable_space_.end()) {
+      const geometry_msgs::Pose& object_pose = object_approach_map_[object_name];
+      const bwi_mapper::Point2d approach_pt(bwi_mapper::toGrid(bwi_mapper::Point2f(object_pose.position.x, 
+                                                                                   object_pose.position.y),
+                                                               info_));
+      object_approachable_space_[object_name] = boost::shared_ptr<bwi_mapper::PathFinder>(new bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt));
+    }
+
+    bwi_mapper::Point2d grid_pt(bwi_mapper::toGrid(current_location, info_));
+    return object_approachable_space_[object_name]->pathExists(grid_pt);
   }
 
   bool SegbotLogicalTranslator::getThroughDoorPoint(size_t idx, 
