@@ -100,7 +100,6 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     float robot_y_;
     float robot_yaw_;
     std::string current_level_id_;
-    std::string global_frame_id_;
 
     double door_proximity_distance_;
 
@@ -132,7 +131,6 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
   ROS_INFO("SegbotLogicalNavigator: Advertising services!");
 
   ros::param::param("~door_proximity_distance", door_proximity_distance_, 2.0);
-  ros::param::param("~global_frame_id", global_frame_id_, std::string("level_mux/map"));
 
   // Make sure you publish the default map at least once so that navigation can start up! Ensure this pub is latched.
   ros::NodeHandle private_nh("~");
