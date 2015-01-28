@@ -90,7 +90,9 @@
     <!-- start the and the robot -->
     <include file="$(find segbot_gazebo)/launch/segbot_mobile_base.launch">                                                
       <arg name="configuration_file" value="$(arg robot_configuration)" />                                                 
-      <arg name="y" value="10.0" />
+      <arg name="x" value="33.5" />
+      <arg name="y" value="8" />
+      <arg name="yaw" value="1.57" />
       <arg name="robotid" value="$(arg robot2)" />
       <arg name="tf_prefix" value="$(arg robot2)" />
       <arg name="map_frame" value="level_mux/map" /> 
