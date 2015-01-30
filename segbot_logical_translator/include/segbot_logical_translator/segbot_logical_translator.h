@@ -147,6 +147,8 @@ namespace segbot_logical_translator {
       ros::ServiceClient make_plan_client_;
       bool make_plan_client_initialized_;
 
+      bool initialized_;
+
   }; /* SegbotLogicalTranslator */
   
 } /* segbot_logical_translator */

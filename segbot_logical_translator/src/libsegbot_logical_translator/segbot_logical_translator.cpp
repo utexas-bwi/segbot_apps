@@ -50,16 +50,14 @@
 
 namespace segbot_logical_translator {
 
-  SegbotLogicalTranslator::SegbotLogicalTranslator() : make_plan_client_initialized_(false) {
+  SegbotLogicalTranslator::SegbotLogicalTranslator() : make_plan_client_initialized_(false), initialized_(false) {
     ROS_INFO_STREAM("SegbotLogicalTranslator: Initializing...");
     nh_.reset(new ros::NodeHandle);
     ros::param::param<std::string>("~global_frame_id", global_frame_id_, "level_mux/map");
-
-    initialize();
   }
 
   bool SegbotLogicalTranslator::initialize() {
-    ROS_INFO_STREAM("SegbotLogicalTranslator: RE-Initializing...");
+    ROS_INFO_STREAM("SegbotLogicalTranslator: Initializing...");
 
     std::string map_file, data_directory;
     std::vector<std::string> required_parameters;
@@ -108,10 +106,16 @@ namespace segbot_logical_translator {
     door_approachable_space_2_.clear();
     object_approachable_space_.clear();
 
+    initialized_ = true;
     return true;
   }
 
   bool SegbotLogicalTranslator::isDoorOpen(size_t idx) {
+
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
 
     if (idx > doors_.size()) {
       return false;
@@ -196,6 +200,11 @@ namespace segbot_logical_translator {
       const bwi_mapper::Point2f& current_location,
       bwi_mapper::Point2f& point, float &yaw) {
 
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
+
     if (idx > doors_.size()) {
       return false;
     }
@@ -235,6 +244,11 @@ namespace segbot_logical_translator {
   bool SegbotLogicalTranslator::isObjectApproachable(const std::string& object_name,
                                                      const bwi_mapper::Point2f& current_location) {
 
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
+
     if (object_approachable_space_.find(object_name) == object_approachable_space_.end()) {
       const geometry_msgs::Pose& object_pose = object_approach_map_[object_name];
       const bwi_mapper::Point2d approach_pt(bwi_mapper::toGrid(bwi_mapper::Point2f(object_pose.position.x, 
@@ -250,6 +264,11 @@ namespace segbot_logical_translator {
   bool SegbotLogicalTranslator::getThroughDoorPoint(size_t idx, 
       const bwi_mapper::Point2f& current_location,
       bwi_mapper::Point2f& point, float& yaw) {
+
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
 
     if (idx > doors_.size()) {
       return false;
@@ -277,6 +296,11 @@ namespace segbot_logical_translator {
       const bwi_mapper::Point2f& current_location,
       float yaw, float threshold, size_t idx) {
 
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
+
     bwi_mapper::Point2f& center_pt = doors_[idx].door_center;
     if (bwi_mapper::getMagnitude(center_pt - current_location) >
         threshold) {
@@ -298,6 +322,11 @@ namespace segbot_logical_translator {
       const bwi_mapper::Point2f& current_location,
       float yaw, float threshold, size_t idx) {
 
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
+
     bwi_mapper::Point2f& center_pt = doors_[idx].door_center;
     if (bwi_mapper::getMagnitude(center_pt - current_location) >
         threshold) {
@@ -309,6 +338,11 @@ namespace segbot_logical_translator {
 
   size_t SegbotLogicalTranslator::getLocationIdx(
       const bwi_mapper::Point2f& current_location) {
+
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
 
     bwi_mapper::Point2f grid = bwi_mapper::toGrid(current_location, info_);
     size_t map_idx = MAP_IDX(info_.width, (int) grid.x, (int) grid.y);
