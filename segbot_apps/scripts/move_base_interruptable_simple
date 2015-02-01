@@ -28,7 +28,7 @@ def handle_move_base_simple_request(msg):
 if __name__ == '__main__':
     try:
         rospy.init_node('move_base_interruptable_simple')
-        sub = rospy.subscriber('move_base_interruptable_simple', PoseStamped, handle_move_base_simple_request)
+        sub = rospy.subscriber('move_base_interruptable_simple/goal', PoseStamped, handle_move_base_simple_request)
         rospy.spin()
     except rospy.ROSInterruptException:
         pass

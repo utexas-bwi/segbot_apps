@@ -27,6 +27,7 @@
 
     <!-- launch the interruptable action server -->
     <node name="move_base_interruptable" pkg="segbot_apps" type="move_base_interruptable_server" />
+    <node name="move_base_interruptable_simple" pkg="segbot_apps" type="move_base_interruptable_simple" />
 
     <!-- start the and the robot -->
     <include file="$(find segbot_gazebo)/launch/segbot_mobile_base.launch">                                                
