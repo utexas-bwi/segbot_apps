@@ -300,7 +300,7 @@ Visualization Manager:
     - Class: rviz/SetInitialPose
       Topic: /marvin/initialpose
     - Class: rviz/SetGoal
-      Topic: /marvin/move_base_simple_interruptable/goal
+      Topic: /marvin/move_base_interruptable_simple/goal
   Value: true
   Views:
     Current:

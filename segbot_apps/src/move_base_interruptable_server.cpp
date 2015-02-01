@@ -1,3 +1,4 @@
+#include <boost/thread/thread.hpp>
 #include <bwi_interruptable_action_server/interruptable_action_server.h>
 #include <move_base_msgs/MoveBaseAction.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
@@ -33,7 +34,13 @@ void newGoalCallback(const InterruptableActionServer<move_base_msgs::MoveBaseAct
     if (!plan_found) {
       ROS_INFO_STREAM("New goal received, but unable to find plan to goal. Clearing costmaps before sending goal to nav stack.");
       std_srvs::Empty srv;
-      clear_costmap_service_->call(srv);
+      if (!clear_costmap_service_->call(srv)) {
+        ROS_ERROR_STREAM("Unable to clear costmaps!");
+      } else {
+        // Sleep for three seconds to allow costmaps to be cleared and reset properly.
+        boost::this_thread::sleep(boost::posix_time::milliseconds(3000));
+        ROS_INFO_STREAM("Costmaps cleared!");
+      }
     }
   }
 }
@@ -48,7 +55,7 @@ int main(int argc, char *argv[]) {
   clear_costmap_service_->waitForExistence();
 
   make_plan_service_.reset(new ros::ServiceClient);
-  *make_plan_service_ = nh.serviceClient<nav_msgs::GetPlan>("move_base/make_plan");
+  *make_plan_service_ = nh.serviceClient<nav_msgs::GetPlan>("move_base/NavfnROS/make_plan");
   make_plan_service_->waitForExistence();
 
   ROS_INFO_STREAM("move_base_interruptable :   Navigation services found!");
