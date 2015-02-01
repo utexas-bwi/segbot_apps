@@ -42,6 +42,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 #include <boost/thread/thread.hpp> 
+#include <bwi_tools/resource_resolver.h>
 #include <message_filters/subscriber.h>
 #include <move_base_msgs/MoveBaseAction.h>
 #include <multi_level_map_msgs/ChangeCurrentLevel.h>
@@ -170,7 +171,8 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
 
 void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level) {
   if (current_level_id_ != current_level->level_id) {
-    ros::param::set("~map_file", current_level->map_file);
+    std::string resolved_map_file = bwi_tools::resolveRosResource(current_level->map_file);
+    ros::param::set("~map_file", resolved_map_file);
     ros::param::set("~data_directory", current_level->data_directory);
     if (SegbotLogicalTranslator::initialize()) {
       publishNavigationMap();
