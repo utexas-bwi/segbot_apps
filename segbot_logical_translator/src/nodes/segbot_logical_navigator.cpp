@@ -173,7 +173,8 @@ void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::Lev
   if (current_level_id_ != current_level->level_id) {
     std::string resolved_map_file = bwi_tools::resolveRosResource(current_level->map_file);
     ros::param::set("~map_file", resolved_map_file);
-    ros::param::set("~data_directory", current_level->data_directory);
+    std::string resolved_data_directory = bwi_tools::resolveRosResource(current_level->data_directory);
+    ros::param::set("~data_directory", resolved_data_directory);
     if (SegbotLogicalTranslator::initialize()) {
       publishNavigationMap();
       // Once the translator is initialized, update the current level id.
