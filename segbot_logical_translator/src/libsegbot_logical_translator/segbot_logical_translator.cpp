@@ -51,7 +51,6 @@
 namespace segbot_logical_translator {
 
   SegbotLogicalTranslator::SegbotLogicalTranslator() : make_plan_client_initialized_(false), initialized_(false) {
-    ROS_INFO_STREAM("SegbotLogicalTranslator: Initializing...");
     nh_.reset(new ros::NodeHandle);
     ros::param::param<std::string>("~global_frame_id", global_frame_id_, "level_mux/map");
   }
@@ -91,11 +90,15 @@ namespace segbot_logical_translator {
 
     bwi_mapper::MapLoader mapper(map_file);
     mapper.getMap(map_);
+    map_.header.stamp = ros::Time::now();
+    map_.header.frame_id = global_frame_id_;
     info_ = map_.info;
 
     std::string map_with_doors_file = bwi_planning_common::getDoorsMapLocationFromDataDirectory(data_directory);
     mapper = bwi_mapper::MapLoader(map_with_doors_file);
     mapper.getMap(map_with_doors_);
+    map_with_doors_.header.stamp = ros::Time::now();
+    map_with_doors_.header.frame_id = global_frame_id_;
 
     // Inflating map by 20cm should get rid of any tiny paths to the goal.
     bwi_mapper::inflateMap(0.2, map_with_doors_, inflated_map_with_doors_);

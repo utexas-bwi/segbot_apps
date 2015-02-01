@@ -122,11 +122,13 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     ros::Publisher navigation_map_publisher_;
     bool last_map_published_with_doors_;
 
+    bool robot_controller_available_;
+
 };
 
 SegbotLogicalNavigator::SegbotLogicalNavigator() : 
     robot_x_(0), robot_y_(0), robot_yaw_(0), current_level_id_(""), execute_action_server_started_(false),
-    change_level_client_available_(false) {
+    change_level_client_available_(false), robot_controller_available_(false) {
 
   ROS_INFO("SegbotLogicalNavigator: Advertising services!");
 
@@ -135,12 +137,10 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
   // Make sure you publish the default map at least once so that navigation can start up! Ensure this pub is latched.
   ros::NodeHandle private_nh("~");
   navigation_map_publisher_ = private_nh.advertise<nav_msgs::OccupancyGrid>("map", 1, true);
-  publishNavigationMap();
 
   robot_controller_.reset(
       new actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>(
         "move_base", true));
-  robot_controller_->waitForServer();
 
   tf_.reset(new tf::TransformListener);
   odom_subscriber_.reset(new message_filters::Subscriber<nav_msgs::Odometry>);
@@ -273,6 +273,13 @@ void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, 
 
 bool SegbotLogicalNavigator::executeNavigationGoal(
     const geometry_msgs::PoseStamped& pose) {
+
+  if (!robot_controller_available_) {
+    ROS_INFO("SegbotLogicalNavigator: Need to send command to robot. Waiting for move_base server...");
+    robot_controller_->waitForServer();
+    ROS_INFO("SegbotLogicalNavigator:   move_base server found!");
+  }
+
   move_base_msgs::MoveBaseGoal goal;
   goal.target_pose = pose;
   robot_controller_->sendGoal(goal);
