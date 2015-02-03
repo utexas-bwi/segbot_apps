@@ -187,7 +187,8 @@ void SegbotLogicalNavigator::multimapHandler(const multi_level_map_msgs::MultiLe
 
   // Read in the objects for each level.
   BOOST_FOREACH(const multi_level_map_msgs::LevelMetaData &level, multimap->levels) {
-    std::string objects_file = level.data_directory + "/objects.yaml";
+    std::string resolved_data_directory = bwi_tools::resolveRosResource(level.data_directory);
+    std::string objects_file = resolved_data_directory + "/objects.yaml";
     bwi_planning_common::readObjectApproachFile(objects_file, level_to_objects_map_[level.level_id]);
   }
 

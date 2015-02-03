@@ -12,6 +12,8 @@
     <param name="map_file" value="$(arg multimap_file)" />               
   </node>
 
+  <include file="$(find segbot_simulation_apps)/launch/door_handler.launch" />
+
   <group ns="$(arg robot)">
 
     <!-- also launch the level multiplexer and the level selector -->
