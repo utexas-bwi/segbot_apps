@@ -37,6 +37,7 @@
 
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
+#include <actionlib/server/simple_action_server.h>
 #include <message_filters/subscriber.h>
 #include <move_base_msgs/MoveBaseAction.h>
 #include <nav_msgs/Odometry.h>
@@ -45,23 +46,22 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
 
-#include <bwi_planning_common/PlannerAtom.h>
-#include <bwi_planning_common/PlannerInterface.h>
+#include <segbot_logical_translator/LogicalNavigationAction.h>
 #include <segbot_logical_translator/segbot_logical_translator.h>
 
 using bwi_planning_common::PlannerAtom;
 using bwi_planning_common::NO_DOOR_IDX;
 
-class SegbotLogicalNavigator : 
-  public segbot_logical_translator::SegbotLogicalTranslator {
+class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTranslator {
 
   public:
 
+    typedef actionlib::SimpleActionServer<segbot_logical_translator::LogicalNavigationAction> LogicalNavActionServer;
+
     SegbotLogicalNavigator();
-    bool execute(bwi_planning_common::PlannerInterface::Request &req,
-        bwi_planning_common::PlannerInterface::Response &res);
+    void execute(const segbot_logical_translator::LogicalNavigationGoalConstPtr &goal);
     bool initialize_srv(
-           map_mux::ChangeMap::Request &req,
+           map_mux::ChangeMap::Request &goal,
            map_mux::ChangeMap::Request &res); 
 
   protected:
@@ -79,8 +79,8 @@ class SegbotLogicalNavigator :
         std::vector<PlannerAtom>& observations,
         std::string& error_message);
 
-    bool executeNavigationGoal( const geometry_msgs::PoseStamped& pose);
-    void odometryHandler( const nav_msgs::Odometry::ConstPtr& odom);
+    bool executeNavigationGoal(const geometry_msgs::PoseStamped& pose);
+    void odometryHandler(const nav_msgs::Odometry::ConstPtr& odom);
 
     float robot_x_;
     float robot_y_;
@@ -88,28 +88,26 @@ class SegbotLogicalNavigator :
 
     double door_proximity_distance_;
 
-    ros::ServiceServer service_;
-    ros::ServiceServer service_floor_switch_;
-    boost::shared_ptr<
-      actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> > 
-      robot_controller_;
+    boost::shared_ptr<LogicalNavActionServer> execute_action_server_; 
+    bool execute_action_server_started_;
+    ros::ServiceServer floor_switch_service_server_;
+
+    boost::shared_ptr<actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> > robot_controller_;
 
     boost::shared_ptr<tf::TransformListener> tf_;
     boost::shared_ptr<tf::MessageFilter<nav_msgs::Odometry> > tf_filter_;
-    boost::shared_ptr<message_filters::Subscriber<nav_msgs::Odometry> > 
-      odom_subscriber_;
+    boost::shared_ptr<message_filters::Subscriber<nav_msgs::Odometry> > odom_subscriber_;
 
 };
 
-SegbotLogicalNavigator::SegbotLogicalNavigator() 
-  : robot_x_(0), robot_y_(0), robot_yaw_(0) {
+SegbotLogicalNavigator::SegbotLogicalNavigator() : 
+    robot_x_(0), robot_y_(0), robot_yaw_(0), execute_action_server_started_(false) {
 
   ROS_INFO("SegbotLogicalNavigator: Advertising services!");
 
   ros::param::param("~door_proximity_distance", door_proximity_distance_, 2.0);
 
-
-  service_floor_switch_ = nh_->advertiseService("floor_switch",
+  floor_switch_service_server_ = nh_->advertiseService("floor_switch",
       &SegbotLogicalNavigator::initialize_srv, this);
 
   robot_controller_.reset(
@@ -125,19 +123,18 @@ SegbotLogicalNavigator::SegbotLogicalNavigator()
   tf_filter_->registerCallback(
       boost::bind(&SegbotLogicalNavigator::odometryHandler, this, _1));
 
-
-
+  execute_action_server_.reset(new LogicalNavActionServer(*nh_,
+                                                          "execute_logical_goal",
+                                                          boost::bind(&SegbotLogicalNavigator::execute, this, _1),
+                                                          false));
 }
 
-  bool SegbotLogicalNavigator::initialize_srv(
-        map_mux::ChangeMap::Request &req,
-        map_mux::ChangeMap::Request &res) {
-      SegbotLogicalTranslator::initialize();
-      return true;
-  }
+bool SegbotLogicalNavigator::initialize_srv(map_mux::ChangeMap::Request &goal, map_mux::ChangeMap::Request &res) {
+  SegbotLogicalTranslator::initialize();
+  return true;
+}
 
-void SegbotLogicalNavigator::senseState(
-    std::vector<PlannerAtom>& observations, size_t door_idx) {
+void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, size_t door_idx) {
 
   PlannerAtom at;
   at.name = "at";
@@ -205,9 +202,23 @@ bool SegbotLogicalNavigator::executeNavigationGoal(
   move_base_msgs::MoveBaseGoal goal;
   goal.target_pose = pose;
   robot_controller_->sendGoal(goal);
-  robot_controller_->waitForResult();
-  actionlib::SimpleClientGoalState state = robot_controller_->getState();
-  return state == actionlib::SimpleClientGoalState::SUCCEEDED;
+  bool navigation_request_complete = false;
+  while (!navigation_request_complete) {
+    if (execute_action_server_->isPreemptRequested() || !ros::ok()) {
+      ROS_INFO("SegbotLogicalNavigator: Got pre-empted. Cancelling low level navigation task...");
+      robot_controller_->cancelGoal();
+      break;
+    }
+    navigation_request_complete = robot_controller_->waitForResult(ros::Duration(0.5));
+  }
+
+  if (navigation_request_complete) {
+    actionlib::SimpleClientGoalState state = robot_controller_->getState();
+    return state == actionlib::SimpleClientGoalState::SUCCEEDED;
+  }
+
+  // If we're here, then we preempted the request ourselves. Let's mark our current request as not successful.
+  return false;
 }
 
 void SegbotLogicalNavigator::odometryHandler(
@@ -222,9 +233,9 @@ void SegbotLogicalNavigator::odometryHandler(
   
   robot_yaw_ = tf::getYaw(pose_out.pose.orientation);
   
-  if(service_ == ros::ServiceServer()) {
-    service_ = nh_->advertiseService("execute_logical_goal",
-      &SegbotLogicalNavigator::execute, this);
+  if(!execute_action_server_started_) {
+    execute_action_server_->start();
+    execute_action_server_started_ = true;
   }
 }
 
@@ -297,6 +308,7 @@ bool SegbotLogicalNavigator::approachObject(const std::string& object_name,
       closeto.name = "-closeto";
     }
     observations.push_back(closeto);
+    return success;
   }
 
   error_message = object_name + " does not exist.";
@@ -324,23 +336,21 @@ bool SegbotLogicalNavigator::senseDoor(const std::string& door_name,
   return true;
 }
 
-bool SegbotLogicalNavigator::execute(
-    bwi_planning_common::PlannerInterface::Request &req,
-    bwi_planning_common::PlannerInterface::Response &res) {
+void SegbotLogicalNavigator::execute(const segbot_logical_translator::LogicalNavigationGoalConstPtr& goal) {
 
+  segbot_logical_translator::LogicalNavigationResult res;
   res.observations.clear();
 
-  if (req.command.name == "approach") {
-    res.success = approachDoor(req.command.value[0], res.observations,
-        res.status, false);
-  } else if (req.command.name == "gothrough") {
-    res.success = approachDoor(req.command.value[0], res.observations,
+  if (goal->command.name == "approach") {
+    res.success = approachDoor(goal->command.value[0], res.observations, res.status, false);
+  } else if (goal->command.name == "gothrough") {
+    res.success = approachDoor(goal->command.value[0], res.observations,
         res.status, true);
-  } else if (req.command.name == "sensedoor") {
-    res.success = senseDoor(req.command.value[0], res.observations,
+  } else if (goal->command.name == "sensedoor") {
+    res.success = senseDoor(goal->command.value[0], res.observations,
         res.status);
-  } else if (req.command.name == "goto") {
-    res.success = approachObject(req.command.value[0], res.observations,
+  } else if (goal->command.name == "goto") {
+    res.success = approachObject(goal->command.value[0], res.observations,
         res.status);
   } else {
     res.success = true;
@@ -348,7 +358,14 @@ bool SegbotLogicalNavigator::execute(
     senseState(res.observations);
   }
 
-  return true;
+  if (res.success) {
+    execute_action_server_->setSucceeded(res);
+  } else if (execute_action_server_->isPreemptRequested()) {
+    execute_action_server_->setPreempted(res);
+  } else {
+    execute_action_server_->setAborted(res);
+  }
+
 }
 
 int main(int argc, char *argv[]) {

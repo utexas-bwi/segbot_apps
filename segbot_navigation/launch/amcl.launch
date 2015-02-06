@@ -2,7 +2,7 @@
 
   <arg name="use_map_topic" default="true"/>
   <arg name="map_service" default="static_map" />
-  <arg name="map_topic" default="map" />
+  <arg name="map_topic" default="map_localization" />
 
   <arg name="scan_topic" default="scan_filtered" />
 
@@ -14,6 +14,18 @@
   <arg name="base_frame_id" default="base_footprint" />
   <arg name="odom_frame_id" default="odom" />
 
+  <arg name="map_file_localization" default="$(find bwi_kr)/maps/map_whole2_with_elevators_new.yaml" />
+
+
+  <!-- run a separate map_server to provide amcl a map for localization -->
+  <node name="map_server_localization" pkg="map_server" type="map_server" args="$(arg map_file_localization)">
+
+    <remap from="map" to="map_localization" />
+
+  </node>
+
+
+  <!-- run amcl -->
   <node pkg="amcl" type="amcl" name="amcl">
     <param name="use_map_topic" value="$(arg use_map_topic)"/>
     <!-- Publish scans from best pose at a max of 10 Hz -->
