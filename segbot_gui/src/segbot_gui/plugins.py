@@ -58,8 +58,7 @@ class QuestionDialogPlugin(Plugin):
         while not self.response_ready:
             if self.request != req:
                 # The request got preempted by a new request.
-                return QuestionDialogResponse(
-                        QuestionDialogRequest.TIMED_OUT, "")
+                return QuestionDialogResponse(QuestionDialogRequest.PREEMPTED, "")
             if req.timeout != QuestionDialogRequest.NO_TIMEOUT:
                 current_time = time.time()
                 if current_time - start_time > req.timeout:
