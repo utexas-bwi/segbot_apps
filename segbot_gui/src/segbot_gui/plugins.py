@@ -56,6 +56,9 @@ class QuestionDialogPlugin(Plugin):
         # Start timer against wall clock here instead of the ros clock.
         start_time = time.time()
         while not self.response_ready:
+            if self.request != req:
+                # The request got preempted by a new request.
+                return QuestionDialogResponse(QuestionDialogRequest.PREEMPTED, "")
             if req.timeout != QuestionDialogRequest.NO_TIMEOUT:
                 current_time = time.time()
                 if current_time - start_time > req.timeout:
