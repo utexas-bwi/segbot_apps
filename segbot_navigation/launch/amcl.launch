@@ -14,7 +14,7 @@
   <arg name="base_frame_id" default="base_footprint" />
   <arg name="odom_frame_id" default="odom" />
 
-  <arg name="map_file_localization" default="$(find bwi_kr)/maps/map_whole2_with_elevators_new.yaml" />
+  <arg name="map_file_localization" default="$(find utexas_gdc)/maps/real/3ne/3ne.yaml" />
 
 
   <!-- run a separate map_server to provide amcl a map for localization -->
