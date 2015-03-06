@@ -59,6 +59,15 @@
     <!-- launch vizualization -->                                                                                          
     <node name="rviz" type="rviz_runner.sh" pkg="segbot_apps" args="$(find segbot_apps)/nav_eband.rviz $(arg robot)" />
 
+    <!-- launch the segbot gui -->
+    <node name="gui" type="question_dialog_plugin" pkg="segbot_gui" />
+
+    <!-- launch planner and reasoner -->
+    <include file="$(find bwi_kr_execution)/launch/bwi_kr_execution.launch">
+      <arg name="simulation" value="true" />
+      <arg name="domain" value="$(find bwi_kr_execution)/domain_simulation/" />
+    </include>
+
   </group>
 
 </launch>

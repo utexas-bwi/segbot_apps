@@ -85,9 +85,10 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
         std::vector<PlannerAtom>& observations,
         std::string& error_message);
 
-    bool changeFloor(const std::string& new_start_loc,
-        std::vector<PlannerAtom>& observations,
-        std::string& error_message);
+    bool changeFloor(const std::string& new_room,
+                     const std::string& facing_door,
+                     std::vector<PlannerAtom>& observations,
+                     std::string& error_message);
 
     bool executeNavigationGoal(const geometry_msgs::PoseStamped& pose);
     void odometryHandler(const nav_msgs::Odometry::ConstPtr& odom);
@@ -118,7 +119,9 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     ros::ServiceClient change_level_client_;
     bool change_level_client_available_;
     std::vector<multi_level_map_msgs::LevelMetaData> all_levels_;
-    std::map<std::string, std::map<std::string, geometry_msgs::Pose> > level_to_objects_map_;
+    std::map<std::string, std::vector<bwi_planning_common::Door> > level_to_doors_map_;
+    std::map<std::string, std::vector<std::string> > level_to_loc_names_map_;
+    std::map<std::string, std::vector<int32_t> > level_to_loc_map_;
 
     ros::Publisher navigation_map_publisher_;
     bool last_map_published_with_doors_;
@@ -188,8 +191,12 @@ void SegbotLogicalNavigator::multimapHandler(const multi_level_map_msgs::MultiLe
   // Read in the objects for each level.
   BOOST_FOREACH(const multi_level_map_msgs::LevelMetaData &level, multimap->levels) {
     std::string resolved_data_directory = bwi_tools::resolveRosResource(level.data_directory);
-    std::string objects_file = resolved_data_directory + "/objects.yaml";
-    bwi_planning_common::readObjectApproachFile(objects_file, level_to_objects_map_[level.level_id]);
+    std::string doors_file = resolved_data_directory + "/doors.yaml";
+    std::string locations_file = resolved_data_directory + "/locations.yaml";
+    bwi_planning_common::readDoorFile(doors_file, level_to_doors_map_[level.level_id]);
+    bwi_planning_common::readLocationFile(locations_file, 
+                                          level_to_loc_names_map_[level.level_id], 
+                                          level_to_loc_map_[level.level_id]);
   }
 
   // Start the change level service client.
@@ -359,7 +366,7 @@ bool SegbotLogicalNavigator::approachDoor(const std::string& door_name,
       pose.header.frame_id = global_frame_id_;
       pose.pose.position.x = approach_pt.x;
       pose.pose.position.y = approach_pt.y;
-      std::cout << "approaching " << approach_pt.x << "," << approach_pt.y << std::endl;
+      // std::cout << "approaching " << approach_pt.x << "," << approach_pt.y << std::endl;
       tf::quaternionTFToMsg(
           tf::createQuaternionFromYaw(approach_yaw), pose.pose.orientation); 
       bool success = executeNavigationGoal(pose);
@@ -417,7 +424,8 @@ bool SegbotLogicalNavigator::approachObject(const std::string& object_name,
   return false;
 }
 
-bool SegbotLogicalNavigator::changeFloor(const std::string& new_start_loc,
+bool SegbotLogicalNavigator::changeFloor(const std::string& new_room,
+                                         const std::string& facing_door,
                                          std::vector<PlannerAtom>& observations,
                                          std::string& error_message) {
 
@@ -430,36 +438,69 @@ bool SegbotLogicalNavigator::changeFloor(const std::string& new_start_loc,
     error_message = "SegbotLogicalNavigator has not received the multimap. Cannot change floors!";
     return false;
   } else {
-    bool start_loc_found = false;
-    typedef std::pair<std::string, std::map<std::string, geometry_msgs::Pose> > Level2LocPair;
-    BOOST_FOREACH(const Level2LocPair& level_to_loc, level_to_objects_map_) {
-      if (level_to_loc.second.find(new_start_loc) != level_to_loc.second.end()) {
-        start_loc_found = true;
+    bool new_room_found = false;
+    typedef std::pair<std::string, std::vector<std::string> > Level2LocNamesPair;
+    BOOST_FOREACH(const Level2LocNamesPair& level_to_loc, level_to_loc_names_map_) {
+      if (std::find(level_to_loc.second.begin(), level_to_loc.second.end(), new_room) != level_to_loc.second.end()) {
+        new_room_found = true;
         floor_name = level_to_loc.first;
         break;
       }
     }
 
-    if (!start_loc_found) {
-      error_message = "Location " + new_start_loc + " has not been defined on any floor!";
+    if (!new_room_found) {
+      error_message = "Location " + new_room + " has not been defined on any floor!";
       return false;
     }
   } 
   
   if (current_level_id_ == floor_name) {
-    error_message = "The robot is already on " + floor_name + " (in which " + new_start_loc + " exists)!";
+    error_message = "The robot is already on " + floor_name + " (in which " + new_room + " exists)!";
     return false;
   }
-    
+
+  // Now find the door on this floor that corresponds to facing_door
+  bool door_found;
+  bwi_planning_common::Door door;
+  BOOST_FOREACH(const bwi_planning_common::Door& floor_door, level_to_doors_map_[floor_name]) {
+    if (floor_door.name == facing_door) {
+      door_found = true;
+      door = floor_door;
+      break;
+    }
+  }
+
+  if (!door_found) {
+    error_message = "Door " + facing_door + " has not been defined on floor " + floor_name + "!";
+    return false;
+  }
+
+  bwi::Point2f approach_pt;
+  float approach_yaw = 0;
+  if (door.approach_names[0] == new_room) {
+    approach_pt = door.approach_points[0];
+    approach_yaw = door.approach_yaw[0];
+  } else if (door.approach_names[1] == new_room) {
+    approach_pt = door.approach_points[1];
+    approach_yaw = door.approach_yaw[1];
+  } else {
+    error_message = "Door " + facing_door + " does not connect location " + new_room + "!";
+    return false;
+  }
+
   multi_level_map_msgs::ChangeCurrentLevel srv;
   srv.request.new_level_id = floor_name;
   srv.request.publish_initial_pose = true;
-  srv.request.initial_pose.header.stamp = ros::Time::now();
-  srv.request.initial_pose.header.frame_id = global_frame_id_;
-  srv.request.initial_pose.pose.pose = level_to_objects_map_[floor_name][new_start_loc];
-  srv.request.initial_pose.pose.covariance[0] = 1.0f;
-  srv.request.initial_pose.pose.covariance[7] = 1.0f;
-  srv.request.initial_pose.pose.covariance[35] = 1.0f;
+
+  geometry_msgs::PoseWithCovarianceStamped &pose = srv.request.initial_pose;
+  pose.header.stamp = ros::Time::now();
+  pose.header.frame_id = global_frame_id_;
+  pose.pose.pose.position.x = approach_pt.x;
+  pose.pose.pose.position.y = approach_pt.y;
+  tf::quaternionTFToMsg( tf::createQuaternionFromYaw(approach_yaw), pose.pose.pose.orientation); 
+  pose.pose.covariance[0] = 0.1;
+  pose.pose.covariance[7] = 0.1f;
+  pose.pose.covariance[35] = 0.25f;
   
   if (change_level_client_.call(srv)) {
     if (!srv.response.success) {
@@ -518,7 +559,7 @@ void SegbotLogicalNavigator::execute(const segbot_logical_translator::LogicalNav
     res.success = approachObject(goal->command.value[0], res.observations,
         res.status);
   } else if (goal->command.name == "changefloor") {
-    res.success = changeFloor(goal->command.value[0], res.observations, res.status);
+    res.success = changeFloor(goal->command.value[0], goal->command.value[1], res.observations, res.status);
   } else {
     res.success = true;
     res.status = "";
