@@ -234,9 +234,18 @@ void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, 
   size_t facing_idx = NO_DOOR_IDX;
 
   for (size_t door = 0; door < num_doors; ++door) {
+
     if (door_idx != NO_DOOR_IDX && door != door_idx) {
+      // We've only requested information about a specific door (door_idx)
+      continue;
+    } 
+
+    if ((doors_[door].approach_names[0] != getLocationString(location_idx)) &&
+        (doors_[door].approach_names[1] != getLocationString(location_idx))) {
+      // We can't sense the current door since we're not in a location that this door connects.
       continue;
     }
+
     bool facing_door = !first_facing && 
       isRobotFacingDoor(robot_loc, robot_yaw_, door_proximity_distance_, door);
     bool beside_door = !first_beside && 
