@@ -22,19 +22,14 @@
 
   <!-- run amcl -->
   <node pkg="amcl" type="amcl" name="amcl">
-    <param name="use_map_topic" value="$(arg use_map_topic)"/>
     <!-- Publish scans from best pose at a max of 10 Hz -->
    
     <param name="gui_publish_rate" value="10.0"/>
-   
-   
    
     <param name="min_particles" value="10000"/>
     <param name="max_particles" value="40000"/>
     <param name="kld_err" value="0.05"/>
     <param name="kld_z" value="0.99"/>
-    
-    
     
     <param name="odom_model_type" value="diff"/>
     <param name="odom_alpha5" value="$(arg odom_alpha5)"/>
@@ -45,8 +40,6 @@
     <!-- translation std dev, m -->
     <param name="odom_alpha3" value="$(arg odom_alpha3)"/>
     <param name="odom_alpha4" value="$(arg odom_alpha4)"/>
-    
-   
    
     <param name="laser_z_hit" value="0.6"/>
     <param name="laser_z_short" value="0.06"/>
@@ -56,7 +49,7 @@
     <param name="laser_lambda_short" value="0.1"/>
     <param name="laser_model_type" value="likelihood_field"/>
     <param name="laser_max_beams" value="60"/>
-    <param name="laser_max_range" value="20.0"/>
+    <param name="laser_max_range" value="-1.0"/> <!-- defaults to max range supplied by sensor -->
     <param name="laser_likelihood_max_dist" value="2.0"/>
     
     <!-- <param name="laser_model_type" value="beam"/> -->
@@ -78,6 +71,7 @@
     <param name="global_frame_id" value="$(arg map_frame_id)" />
     <param name="odom_frame_id" value="$(arg odom_frame_id)" />
 
+    <param name="use_map_topic" value="$(arg use_map_topic)"/>
     <remap from="static_map" to="$(arg map_service)" />
     <remap from="map" to="$(arg map_topic)" />
 
