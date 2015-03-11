@@ -39,7 +39,10 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
+#include <bwi_mapper/map_inflator.h>
+#include <bwi_mapper/map_loader.h>
 #include <bwi_mapper/map_utils.h>
 #include <bwi_mapper/point_utils.h>
 
@@ -47,39 +50,21 @@
 
 namespace segbot_logical_translator {
 
-  SegbotLogicalTranslator::SegbotLogicalTranslator() {
-    ROS_INFO_STREAM("SegbotLogicalTranslator: Initializing...");
+  SegbotLogicalTranslator::SegbotLogicalTranslator() : make_plan_client_initialized_(false), initialized_(false) {
     nh_.reset(new ros::NodeHandle);
-    
-    ROS_INFO_STREAM("SegbotLogicalTranslator: Waiting for make_plan service..");
-    make_plan_client_ = 
-      nh_->serviceClient<nav_msgs::GetPlan>("move_base/make_plan"); 
-    ROS_INFO_STREAM("SegbotLogicalTranslator: make_plan service found!");
-    make_plan_client_.waitForExistence();
-    ros::param::param<std::string>(
-        "~global_frame_id", global_frame_id_, "/map");
-    initialize();
+    ros::param::param<std::string>("~global_frame_id", global_frame_id_, "level_mux/map");
   }
-  bool SegbotLogicalTranslator::initialize_srv(
-        map_mux::ChangeMap::Request &req,
-        map_mux::ChangeMap::Request &res) {
-      initialize();
-      return true;
-  }
-  void SegbotLogicalTranslator::initialize() {
-    ROS_INFO_STREAM("SegbotLogicalTranslator: RE-Initializing...");
 
-    std::string map_file, door_file, location_file;
+  bool SegbotLogicalTranslator::initialize() {
+    ROS_INFO_STREAM("SegbotLogicalTranslator: Initializing...");
+
+    std::string map_file, data_directory;
     std::vector<std::string> required_parameters;
     if (!ros::param::get("~map_file", map_file)) {
       required_parameters.push_back("~map_file");
     }
-    if (!ros::param::get("~door_file", door_file)) {
-      required_parameters.push_back("~door_file");
-    }
-    if (!ros::param::get("~location_file", location_file)) {
-      required_parameters.push_back("~location_file");
-      ROS_INFO_STREAM("SegbotLogicalTranslator: changed location file");
+    if (!ros::param::get("~data_directory", data_directory)) {
+      required_parameters.push_back("~data_directory");
     }
     if (required_parameters.size() != 0) {
       std::string message = "SegbotLogicalTranslator: Required parameters [" + 
@@ -88,25 +73,52 @@ namespace segbot_logical_translator {
       throw std::runtime_error(message);
     }
 
-    std::string object_file;
-    if (ros::param::get("~object_file", object_file)) {
-      ROS_INFO_STREAM("Reading in object file from: " << object_file);
-      bwi_planning_common::readObjectApproachFile( object_file,
-          object_approach_map_);
-    }
+    std::string door_file = bwi_planning_common::getDoorsFileLocationFromDataDirectory(data_directory);
+    ROS_INFO_STREAM("SegbotLogicalTranslator: Reading door file: " + door_file);
     bwi_planning_common::readDoorFile(door_file, doors_);
-    bwi_planning_common::readLocationFile(location_file, 
-        locations_, location_map_);
-    mapper_.reset(new bwi_mapper::MapLoader(map_file));
-    nav_msgs::OccupancyGrid grid;
-    mapper_->getMap(grid);
-    info_ = grid.info;
 
-    ROS_INFO("Map_statistics  Height:%d Width:%d" , info_.height, info_.width);
-    ROS_INFO("Map_statistics  LocationsArraySize:%d" , (int)location_map_.size());
+    std::string location_file = bwi_planning_common::getLocationsFileLocationFromDataDirectory(data_directory);
+    ROS_INFO_STREAM("SegbotLogicalTranslator: Reading locations file: " + location_file);
+    bwi_planning_common::readLocationFile(location_file, locations_, location_map_);
+
+    std::string object_file = bwi_planning_common::getObjectsFileLocationFromDataDirectory(data_directory);
+    ROS_INFO_STREAM("SegbotLogicalTranslator: Checking if objects file exists: " + object_file);
+    if (boost::filesystem::exists(object_file)) {
+      ROS_INFO_STREAM("SegbotLogicalTranslator:   Objects file exists. Reading now!");
+      bwi_planning_common::readObjectApproachFile(object_file, object_approach_map_);
+    }
+
+    bwi_mapper::MapLoader mapper(map_file);
+    mapper.getMap(map_);
+    map_.header.stamp = ros::Time::now();
+    map_.header.frame_id = global_frame_id_;
+    info_ = map_.info;
+
+    std::string map_with_doors_file = bwi_planning_common::getDoorsMapLocationFromDataDirectory(data_directory);
+    mapper = bwi_mapper::MapLoader(map_with_doors_file);
+    mapper.getMap(map_with_doors_);
+    map_with_doors_.header.stamp = ros::Time::now();
+    map_with_doors_.header.frame_id = global_frame_id_;
+
+    // Inflating map by 20cm should get rid of any tiny paths to the goal.
+    bwi_mapper::inflateMap(0.2, map_with_doors_, inflated_map_with_doors_);
+
+    // We'll do lazy initialization of the approachable space. Just clear it for now, and we'll populate it as 
+    // necessary.
+    door_approachable_space_1_.clear();
+    door_approachable_space_2_.clear();
+    object_approachable_space_.clear();
+
+    initialized_ = true;
+    return true;
   }
 
   bool SegbotLogicalTranslator::isDoorOpen(size_t idx) {
+
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
 
     if (idx > doors_.size()) {
       return false;
@@ -141,94 +153,143 @@ namespace segbot_logical_translator {
 
     int counter = 0;
 
+    if (!make_plan_client_initialized_) {
+      ROS_INFO_STREAM("SegbotLogicalTranslator: Waiting for make_plan service..");
+      make_plan_client_ = nh_->serviceClient<nav_msgs::GetPlan>("move_base/make_plan"); 
+      make_plan_client_.waitForExistence();
+      ROS_INFO_STREAM("SegbotLogicalTranslator: make_plan service found!");
+      make_plan_client_initialized_ = true;
+    }
+
     for( int  i = 0; i < 3 ; i++){
-        if (make_plan_client_.call(srv)) {
-          if (srv.response.plan.poses.size() != 0) {
-            // Valid plan received. Check if plan distance seems reasonable
-            float distance = 0;
-            geometry_msgs::Point old_pt = 
-              srv.response.plan.poses[0].pose.position;
-            for (size_t i = 1; i < srv.response.plan.poses.size(); ++i) {
-              geometry_msgs::Point current_pt = 
-                srv.response.plan.poses[i].pose.position;
-              distance += sqrt(pow(current_pt.x - old_pt.x, 2) + 
-                               pow(current_pt.y - old_pt.y, 2));
-              old_pt = current_pt;
-            }
-            if (distance < 3 * min_distance) {
-              //return true;
-              counter++;
-            } else {
-               //return false; // returned path probably through some other door
-               counter = 0;
-            }
+      if (make_plan_client_.call(srv)) {
+        if (srv.response.plan.poses.size() != 0) {
+          // Valid plan received. Check if plan distance seems reasonable
+          float distance = 0;
+          geometry_msgs::Point old_pt = 
+            srv.response.plan.poses[0].pose.position;
+          for (size_t i = 1; i < srv.response.plan.poses.size(); ++i) {
+            geometry_msgs::Point current_pt = 
+              srv.response.plan.poses[i].pose.position;
+            distance += sqrt(pow(current_pt.x - old_pt.x, 2) + 
+                             pow(current_pt.y - old_pt.y, 2));
+            old_pt = current_pt;
+          }
+          if (distance < 3 * min_distance) {
+            //return true;
+            counter++;
           } else {
-               //return false; // this is ok. it means the door is closed
-               counter = 0;
+            //return false; // returned path probably through some other door
+            counter = 0;
           }
         } else {
-              //return false; // shouldn't be here. the service has failed
-              counter = 0;
+          //return false; // this is ok. it means the door is closed
+          counter = 0;
         }
+      } else {
+        //return false; // shouldn't be here. the service has failed
+        counter = 0;
+      }
     }
     if (counter == 3){
-        // we have see the door open 3 consequitive times
-        return true;
-    }else{
-        return false;
+      // we have see the door open 3 consequitive times
+      return true;
+    } else {
+      return false;
     }
   }
-
-
 
   bool SegbotLogicalTranslator::getApproachPoint(size_t idx, 
       const bwi_mapper::Point2f& current_location,
       bwi_mapper::Point2f& point, float &yaw) {
 
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
+
     if (idx > doors_.size()) {
       return false;
     }
 
-    for (size_t pt = 0; pt < 2; ++pt) {
-      std::vector<std::string> approach_locations;
-      boost::split(approach_locations, doors_[idx].approach_names[pt], 
-          boost::is_any_of(","), boost::token_compress_on);
-      BOOST_FOREACH(const std::string& location, approach_locations) {
-        if (getLocationIdx(location) == 
-            getLocationIdx(current_location)) {
-          point = doors_[idx].approach_points[pt];
-          yaw = doors_[idx].approach_yaw[pt];
-          return true;
-        }
+    // See if we've calculated the approachable space for this door.
+    if (door_approachable_space_1_.find(idx) == door_approachable_space_1_.end()) {
+      const bwi_planning_common::Door& door = doors_[idx];
+      const bwi_mapper::Point2d approach_pt_1(bwi_mapper::toGrid(door.approach_points[0], info_));
+      door_approachable_space_1_[idx] = boost::shared_ptr<bwi_mapper::PathFinder>(new bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt_1));
+    }
+    if (door_approachable_space_2_.find(idx) == door_approachable_space_2_.end()) {
+      const bwi_planning_common::Door& door = doors_[idx];
+      const bwi_mapper::Point2d approach_pt_2(bwi_mapper::toGrid(door.approach_points[1], info_));
+      door_approachable_space_2_[idx] = boost::shared_ptr<bwi_mapper::PathFinder>(new bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt_2));
+    }
+
+    // Find the approach point to which we can find a path. If both approach points can be reached, fine the approach
+    // point which is closer. 
+    bwi_mapper::Point2d grid(bwi_mapper::toGrid(current_location, info_));
+    int distance_1 = door_approachable_space_1_[idx]->getManhattanDistance(grid);
+    int distance_2 = door_approachable_space_2_[idx]->getManhattanDistance(grid);
+    if (distance_1 >= 0 || distance_2 >= 0) {
+      if (distance_1 >= 0 && (distance_1 < distance_2 || distance_2 < 0)) {
+        point = doors_[idx].approach_points[0];
+        yaw = doors_[idx].approach_yaw[0];
+      } else {
+        point = doors_[idx].approach_points[1];
+        yaw = doors_[idx].approach_yaw[1];
       }
+      return true;
     }
 
     /* The door is not approachable from the current location */
     return false;
   }
 
+  bool SegbotLogicalTranslator::isObjectApproachable(const std::string& object_name,
+                                                     const bwi_mapper::Point2f& current_location) {
+
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
+
+    if (object_approachable_space_.find(object_name) == object_approachable_space_.end()) {
+      const geometry_msgs::Pose& object_pose = object_approach_map_[object_name];
+      const bwi_mapper::Point2d approach_pt(bwi_mapper::toGrid(bwi_mapper::Point2f(object_pose.position.x, 
+                                                                                   object_pose.position.y),
+                                                               info_));
+      object_approachable_space_[object_name] = boost::shared_ptr<bwi_mapper::PathFinder>(new bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt));
+    }
+
+    bwi_mapper::Point2d grid_pt(bwi_mapper::toGrid(current_location, info_));
+    return object_approachable_space_[object_name]->pathExists(grid_pt);
+  }
+
   bool SegbotLogicalTranslator::getThroughDoorPoint(size_t idx, 
       const bwi_mapper::Point2f& current_location,
       bwi_mapper::Point2f& point, float& yaw) {
+
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
 
     if (idx > doors_.size()) {
       return false;
     }
 
-    for (size_t pt = 0; pt < 2; ++pt) {
-      std::vector<std::string> approach_locations;
-      boost::split(approach_locations, doors_[idx].approach_names[pt], 
-          boost::is_any_of(","), boost::token_compress_on);
-      BOOST_FOREACH(const std::string& location, approach_locations) {
-        if (getLocationIdx(location) == 
-            getLocationIdx(current_location)) {
-          point = doors_[idx].approach_points[1 - pt];
-          yaw = M_PI + doors_[idx].approach_yaw[1 - pt];
-          while (yaw > M_PI) yaw -= 2 * M_PI;
-          while (yaw <= M_PI) yaw += 2 * M_PI;
-          return true;
-        }
+    bwi_mapper::Point2f approach_point; 
+    float unused_approach_yaw;
+    bool door_approachable = getApproachPoint(idx, current_location, approach_point, unused_approach_yaw);
+    if (door_approachable) {
+      if (approach_point.x == doors_[idx].approach_points[0].x &&
+          approach_point.y == doors_[idx].approach_points[0].y) {
+        point = doors_[idx].approach_points[1];
+        yaw = doors_[idx].approach_yaw[1] + M_PI;
+      } else {
+        point = doors_[idx].approach_points[0];
+        yaw = doors_[idx].approach_yaw[0] + M_PI;
       }
+      return true;
     }
 
     return false;
@@ -238,8 +299,12 @@ namespace segbot_logical_translator {
       const bwi_mapper::Point2f& current_location,
       float yaw, float threshold, size_t idx) {
 
-    bwi_mapper::Point2f center_pt = 0.5 * 
-      (doors_[idx].approach_points[0] + doors_[idx].approach_points[1]);
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
+
+    bwi_mapper::Point2f& center_pt = doors_[idx].door_center;
     if (bwi_mapper::getMagnitude(center_pt - current_location) >
         threshold) {
       return false;
@@ -260,8 +325,12 @@ namespace segbot_logical_translator {
       const bwi_mapper::Point2f& current_location,
       float yaw, float threshold, size_t idx) {
 
-    bwi_mapper::Point2f center_pt = 0.5 * 
-      (doors_[idx].approach_points[0] + doors_[idx].approach_points[1]);
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
+
+    bwi_mapper::Point2f& center_pt = doors_[idx].door_center;
     if (bwi_mapper::getMagnitude(center_pt - current_location) >
         threshold) {
       return false;
@@ -272,6 +341,11 @@ namespace segbot_logical_translator {
 
   size_t SegbotLogicalTranslator::getLocationIdx(
       const bwi_mapper::Point2f& current_location) {
+
+    if (!initialized_) {
+      ROS_ERROR_STREAM("SegbotLogicalTranslator : requesting data without being initialized!");
+      return false;
+    }
 
     bwi_mapper::Point2f grid = bwi_mapper::toGrid(current_location, info_);
     size_t map_idx = MAP_IDX(info_.width, (int) grid.x, (int) grid.y);

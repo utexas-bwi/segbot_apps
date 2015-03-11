@@ -42,11 +42,11 @@
 #include <ros/ros.h>
 #include <boost/shared_ptr.hpp>
 
-#include <bwi_mapper/map_loader.h>
+#include <bwi_mapper/path_finder.h>
 #include <bwi_planning_common/structures.h>
+#include <bwi_planning_common/utils.h>
 #include <bwi_tools/point.h>
 #include <nav_msgs/GetPlan.h>
-#include <map_mux/ChangeMap.h>
 
 namespace segbot_logical_translator {
 
@@ -57,9 +57,6 @@ namespace segbot_logical_translator {
       SegbotLogicalTranslator();
 
       bool isDoorOpen(size_t idx);
-      bool initialize_srv(
-           map_mux::ChangeMap::Request &req,
-           map_mux::ChangeMap::Request &res); 
 
       bool getApproachPoint(size_t idx, 
           const bwi::Point2f& current_location,
@@ -75,8 +72,10 @@ namespace segbot_logical_translator {
       bool isRobotBesideDoor(
           const bwi::Point2f& current_location,
           float yaw, float threshold, size_t idx);
-      void initialize(
-          );
+      bool initialize();
+
+      bool isObjectApproachable(const std::string& object_name, 
+          const bwi::Point2f& current_location);
 
       inline bool getObjectApproachLocation(const std::string& object_name,
           geometry_msgs::Pose& pose) {
@@ -131,15 +130,24 @@ namespace segbot_logical_translator {
       std::string global_frame_id_;
 
       std::vector<bwi_planning_common::Door> doors_;
+      std::map<int, boost::shared_ptr<bwi_mapper::PathFinder> > door_approachable_space_1_; 
+      std::map<int, boost::shared_ptr<bwi_mapper::PathFinder> > door_approachable_space_2_; 
+
       std::vector<std::string> locations_;
       std::vector<int32_t> location_map_;
       std::map<std::string, geometry_msgs::Pose> object_approach_map_;
+      std::map<std::string, boost::shared_ptr<bwi_mapper::PathFinder> > object_approachable_space_;
 
-      boost::shared_ptr <bwi_mapper::MapLoader> mapper_;
+      nav_msgs::OccupancyGrid map_;
+      nav_msgs::OccupancyGrid map_with_doors_;
+      nav_msgs::OccupancyGrid inflated_map_with_doors_;
       nav_msgs::MapMetaData info_;
 
       boost::shared_ptr<ros::NodeHandle> nh_;
       ros::ServiceClient make_plan_client_;
+      bool make_plan_client_initialized_;
+
+      bool initialized_;
 
   }; /* SegbotLogicalTranslator */
   
