@@ -8,6 +8,7 @@ find_package(catkin REQUIRED
     bwi_mapper 
     bwi_planning_common 
     message_filters
+    message_generation
     move_base_msgs
     multi_level_map_msgs
     multi_level_map_utils
@@ -30,7 +31,9 @@ catkin_package(
     actionlib_msgs
     bwi_mapper 
     bwi_planning_common
+    message_runtime
     move_base_msgs
+    multi_level_map_msgs
     nav_msgs
     roscpp 
     tf

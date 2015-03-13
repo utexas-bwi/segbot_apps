@@ -13,11 +13,19 @@ target_link_libraries(move_base_interruptable_server
   ${catkin_LIBRARIES}
 )
 
+install(TARGETS move_base_interruptable_server
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 foreach(dir config launch rviz)
   install(DIRECTORY ${dir}/ 
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/${dir})
 endforeach()
 
+catkin_install_python(PROGRAMS scripts/move_base_interruptable_simple scripts/rviz_runner.sh
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 # unit tests are enabled selectively
 if (CATKIN_ENABLE_TESTING)
