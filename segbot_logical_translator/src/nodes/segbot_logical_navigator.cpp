@@ -55,7 +55,7 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
 
-#include <segbot_logical_translator/LogicalNavigationAction.h>
+#include <bwi_msgs/LogicalNavigationAction.h>
 #include <segbot_logical_translator/segbot_logical_translator.h>
 
 using bwi_planning_common::PlannerAtom;
@@ -65,10 +65,10 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
 
   public:
 
-    typedef actionlib::SimpleActionServer<segbot_logical_translator::LogicalNavigationAction> LogicalNavActionServer;
+    typedef actionlib::SimpleActionServer<bwi_msgs::LogicalNavigationAction> LogicalNavActionServer;
 
     SegbotLogicalNavigator();
-    void execute(const segbot_logical_translator::LogicalNavigationGoalConstPtr &goal);
+    void execute(const bwi_msgs::LogicalNavigationGoalConstPtr &goal);
 
   protected:
 
@@ -551,9 +551,9 @@ bool SegbotLogicalNavigator::senseDoor(const std::string& door_name,
   return true;
 }
 
-void SegbotLogicalNavigator::execute(const segbot_logical_translator::LogicalNavigationGoalConstPtr& goal) {
+void SegbotLogicalNavigator::execute(const bwi_msgs::LogicalNavigationGoalConstPtr& goal) {
 
-  segbot_logical_translator::LogicalNavigationResult res;
+  bwi_msgs::LogicalNavigationResult res;
   res.observations.clear();
 
   if (goal->command.name == "approach") {

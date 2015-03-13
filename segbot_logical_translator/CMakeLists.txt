@@ -4,11 +4,10 @@ project(segbot_logical_translator)
 find_package(catkin REQUIRED 
   COMPONENTS 
     actionlib 
-    actionlib_msgs
     bwi_mapper 
+    bwi_msgs 
     bwi_planning_common 
     message_filters
-    message_generation
     move_base_msgs
     multi_level_map_msgs
     multi_level_map_utils
@@ -17,23 +16,16 @@ find_package(catkin REQUIRED
     tf
 )
 
-add_action_files(
-  DIRECTORY action
-  FILES LogicalNavigation.action
-)
-
-generate_messages(
-  DEPENDENCIES actionlib_msgs bwi_planning_common 
-)
-
 catkin_package(
   CATKIN_DEPENDS 
-    actionlib_msgs
+    actionlib
     bwi_mapper 
+    bwi_msgs
     bwi_planning_common
-    message_runtime
+    message_filters
     move_base_msgs
     multi_level_map_msgs
+    multi_level_map_utils
     nav_msgs
     roscpp 
     tf

@@ -9,12 +9,12 @@ import actionlib
 # Brings in the messages used by the fibonacci action, including the
 # goal message and the result message.
 import bwi_planning_common.msg
-import segbot_logical_translator.msg
+import bwi_msgs.msg
 
 def execute_logical_goal():
     # Creates the SimpleActionClient, passing the type of the action
     # (FibonacciAction) to the constructor.
-    client = actionlib.SimpleActionClient('execute_logical_goal', segbot_logical_translator.msg.LogicalNavigationAction)
+    client = actionlib.SimpleActionClient('execute_logical_goal', bwi_msgs.msg.LogicalNavigationAction)
 
     # Waits until the action server has started up and started
     # listening for goals.
@@ -24,7 +24,7 @@ def execute_logical_goal():
     atom = bwi_planning_common.msg.PlannerAtom()
     atom.name = sys.argv[1]
     atom.value = sys.argv[2:]
-    goal = segbot_logical_translator.msg.LogicalNavigationGoal(atom)
+    goal = bwi_msgs.msg.LogicalNavigationGoal(atom)
 
     # Sends the goal to the action server.
     client.send_goal(goal)
