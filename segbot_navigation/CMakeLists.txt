@@ -24,7 +24,12 @@ foreach(dir config launch rviz)
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/${dir})
 endforeach()
 
-catkin_install_python(PROGRAMS scripts/move_base_interruptable_simple scripts/rviz_runner.sh
+catkin_install_python(PROGRAMS scripts/move_base_interruptable_simple scripts/rviz_runner
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+
+# Install the teleoperation script for rosrun 
+install(PROGRAMS 
+  scripts/rviz_runner
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 # unit tests are enabled selectively
