@@ -2,8 +2,8 @@
 Changelog for package segbot_gui
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.0 (2015-03-24)
+------------------
 * removed unnecessary script installation which installs in global bin instead of package bin.
 * migrated QuestionDialog srv to bwi_msgs in bwi_common
 * now return preempted option when preempted

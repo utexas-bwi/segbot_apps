@@ -2,8 +2,8 @@
 Changelog for package segbot_navigation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.0 (2015-03-24)
+------------------
 * a number of navigation changes to allow for correct navigation with multiple namespaced robots, and use the multimap.
 * fixed a bunch of catkin_lint errors. also installed missing scripts. closes `#23 <https://github.com/utexas-bwi/segbot_apps/issues/23>`_
 * added better approach point determination. only navigate via the current location

@@ -2,8 +2,8 @@
 Changelog for package segbot_logical_translator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.0 (2015-03-24)
+------------------
 * completed migration of LogicalNavigationAction to bwi_msgs in bwi_common repository.
 * fixed bug in segbot_logical_translator where it would try and analyze facing/beside for doors not connected to the current location.
 * modified the segbot_logical_navigator to use action service instead of services.
