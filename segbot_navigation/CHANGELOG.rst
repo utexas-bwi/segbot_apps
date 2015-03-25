@@ -2,6 +2,17 @@
 Changelog for package segbot_navigation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* a number of navigation changes to allow for correct navigation with multiple namespaced robots, and use the multimap.
+* fixed a bunch of catkin_lint errors. also installed missing scripts. closes `#23 <https://github.com/utexas-bwi/segbot_apps/issues/23>`_
+* added better approach point determination. only navigate via the current location
+* Fixed nan_to_inf filter, still testing laser on new robot.
+* revised map_server's node name to make it unique
+* tuned many of the amcl parameters to make navigation better.
+* Made the door checker test for the door to be open 3 times before going through. Works much better.
+* Contributors: BWI, Jivko Sinapov, Piyush Khandelwal, Shiqi Zhang, bwi
+
 0.2.1 (2014-04-22)
 ------------------
 
