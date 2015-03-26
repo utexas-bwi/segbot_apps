@@ -41,7 +41,7 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
-#include <boost/thread/thread.hpp> 
+#include <boost/thread/thread.hpp>
 #include <bwi_tools/resource_resolver.h>
 #include <message_filters/subscriber.h>
 #include <move_base_msgs/MoveBaseAction.h>
@@ -49,6 +49,7 @@
 #include <multi_level_map_msgs/LevelMetaData.h>
 #include <multi_level_map_msgs/MultiLevelMapData.h>
 #include <multi_level_map_utils/utils.h>
+#include <map_msgs/OccupancyGridUpdate.h>
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <tf/message_filter.h>
@@ -72,15 +73,15 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
 
   protected:
 
-    void senseState(std::vector<PlannerAtom>& observations, 
+    void senseState(std::vector<PlannerAtom>& observations,
         size_t door_idx = NO_DOOR_IDX);
-    bool approachDoor(const std::string& door_name, 
+    bool approachDoor(const std::string& door_name,
         std::vector<PlannerAtom>& observations,
         std::string& error_message, bool gothrough = false);
-    bool senseDoor(const std::string& door_name, 
+    bool senseDoor(const std::string& door_name,
         std::vector<PlannerAtom>& observations,
         std::string& error_message);
-    
+
     bool approachObject(const std::string& object_name,
         std::vector<PlannerAtom>& observations,
         std::string& error_message);
@@ -96,7 +97,8 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     void currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level);
     void multimapHandler(const multi_level_map_msgs::MultiLevelMapData::ConstPtr& multimap);
 
-    void publishNavigationMap(bool publish_map_with_doors = false);
+    void publishNavigationMap(bool publish_map_with_doors = false,
+                              bool wait_for_costmap_change = false);
 
     float robot_x_;
     float robot_y_;
@@ -105,7 +107,7 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
 
     double door_proximity_distance_;
 
-    boost::shared_ptr<LogicalNavActionServer> execute_action_server_; 
+    boost::shared_ptr<LogicalNavActionServer> execute_action_server_;
     bool execute_action_server_started_;
 
     boost::shared_ptr<actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> > robot_controller_;
@@ -126,11 +128,19 @@ class SegbotLogicalNavigator : public segbot_logical_translator::SegbotLogicalTr
     ros::Publisher navigation_map_publisher_;
     bool last_map_published_with_doors_;
 
+    // Subscribe to costmap and costmap updates message to ensure that a published navigation map has been accepted.
+    void costmapSubscriber(const nav_msgs::OccupancyGrid::ConstPtr& costmap);
+    void costmapUpdatesSubscriber(const map_msgs::OccupancyGridUpdate::ConstPtr& costmap_updates);
+    ros::Subscriber costmap_subscriber_;
+    ros::Subscriber costmap_updates_subscriber_;
+    bool full_global_costmap_update_;
+    int global_costmap_width_;
+
     bool robot_controller_available_;
 
 };
 
-SegbotLogicalNavigator::SegbotLogicalNavigator() : 
+SegbotLogicalNavigator::SegbotLogicalNavigator() :
     robot_x_(0), robot_y_(0), robot_yaw_(0), current_level_id_(""), execute_action_server_started_(false),
     change_level_client_available_(false), robot_controller_available_(false) {
 
@@ -160,16 +170,26 @@ SegbotLogicalNavigator::SegbotLogicalNavigator() :
                                                           false));
 
   current_level_subscriber_ = nh_->subscribe("level_mux/current_level",
-                                             1, 
+                                             1,
                                              &SegbotLogicalNavigator::currentLevelHandler,
                                              this);
 
   multimap_subscriber_ = nh_->subscribe("map_metadata",
-                                        1, 
+                                        1,
                                         &SegbotLogicalNavigator::multimapHandler,
                                         this);
 
-
+  // Subscribe to the global costmap and Use the local costmap width as a substitute for max raytrace range.
+  costmap_subscriber_ = nh_->subscribe("move_base/global_costmap/costmap",
+                                       1,
+                                       &SegbotLogicalNavigator::costmapSubscriber,
+                                       this);
+  costmap_updates_subscriber_ = nh_->subscribe("move_base/global_costmap/costmap_updates",
+                                               1,
+                                               &SegbotLogicalNavigator::costmapUpdatesSubscriber,
+                                               this);
+  global_costmap_width_ = -1;
+  full_global_costmap_update_ = false;
 }
 
 void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::LevelMetaData::ConstPtr& current_level) {
@@ -186,6 +206,16 @@ void SegbotLogicalNavigator::currentLevelHandler(const multi_level_map_msgs::Lev
   }
 }
 
+void SegbotLogicalNavigator::costmapSubscriber(const nav_msgs::OccupancyGrid::ConstPtr& costmap) {
+  global_costmap_width_ = costmap->info.width;
+}
+
+void SegbotLogicalNavigator::costmapUpdatesSubscriber(const map_msgs::OccupancyGridUpdate::ConstPtr& costmap_updates) {
+  if (global_costmap_width_ != -1 && costmap_updates->width == global_costmap_width_) {
+    full_global_costmap_update_ = true;
+  }
+}
+
 void SegbotLogicalNavigator::multimapHandler(const multi_level_map_msgs::MultiLevelMapData::ConstPtr& multimap) {
 
   // Read in the objects for each level.
@@ -194,8 +224,8 @@ void SegbotLogicalNavigator::multimapHandler(const multi_level_map_msgs::MultiLe
     std::string doors_file = resolved_data_directory + "/doors.yaml";
     std::string locations_file = resolved_data_directory + "/locations.yaml";
     bwi_planning_common::readDoorFile(doors_file, level_to_doors_map_[level.level_id]);
-    bwi_planning_common::readLocationFile(locations_file, 
-                                          level_to_loc_names_map_[level.level_id], 
+    bwi_planning_common::readLocationFile(locations_file,
+                                          level_to_loc_names_map_[level.level_id],
                                           level_to_loc_map_[level.level_id]);
   }
 
@@ -206,16 +236,29 @@ void SegbotLogicalNavigator::multimapHandler(const multi_level_map_msgs::MultiLe
       change_level_client_ = nh_->serviceClient<multi_level_map_msgs::ChangeCurrentLevel>("level_mux/change_current_level");
     }
   }
-  
+
 }
 
-void SegbotLogicalNavigator::publishNavigationMap(bool publish_map_with_doors) {
+void SegbotLogicalNavigator::publishNavigationMap(bool publish_map_with_doors, bool wait_for_costmap_change) {
+  if (wait_for_costmap_change) {
+    full_global_costmap_update_ = false;
+  }
   if (publish_map_with_doors) {
     navigation_map_publisher_.publish(map_with_doors_);
     last_map_published_with_doors_ = true;
   } else {
     navigation_map_publisher_.publish(map_);
     last_map_published_with_doors_ = false;
+  }
+  if (wait_for_costmap_change) {
+    int counter = 0;
+    while (!full_global_costmap_update_ && counter < 100) {
+      boost::this_thread::sleep(boost::posix_time::milliseconds(20));
+      counter++;
+    }
+    if (counter == 100) {
+      ROS_WARN_STREAM("segbot_logical_navigator: Waited 2 seconds for move_base global costmap to change, but it did not. I'll move forward with the assumption that the map changed and I missed the notification.");
+    }
   }
 }
 
@@ -238,7 +281,7 @@ void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, 
     if (door_idx != NO_DOOR_IDX && door != door_idx) {
       // We've only requested information about a specific door (door_idx)
       continue;
-    } 
+    }
 
     if ((doors_[door].approach_names[0] != getLocationString(location_idx)) &&
         (doors_[door].approach_names[1] != getLocationString(location_idx))) {
@@ -246,9 +289,9 @@ void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, 
       continue;
     }
 
-    bool facing_door = !first_facing && 
+    bool facing_door = !first_facing &&
       isRobotFacingDoor(robot_loc, robot_yaw_, door_proximity_distance_, door);
-    bool beside_door = !first_beside && 
+    bool beside_door = !first_beside &&
       isRobotBesideDoor(robot_loc, robot_yaw_, door_proximity_distance_, door);
     if (!facing_door) {
       PlannerAtom n_facing;
@@ -331,16 +374,16 @@ void SegbotLogicalNavigator::odometryHandler(
   robot_x_ = pose_out.pose.position.x;
   robot_y_ = pose_out.pose.position.y;
   //ROS_INFO("OdometryHandler X:%f Y:%f" , robot_x_, robot_y_);
-  
+
   robot_yaw_ = tf::getYaw(pose_out.pose.orientation);
-  
+
   if(!execute_action_server_started_) {
     execute_action_server_->start();
     execute_action_server_started_ = true;
   }
 }
 
-bool SegbotLogicalNavigator::approachDoor(const std::string& door_name, 
+bool SegbotLogicalNavigator::approachDoor(const std::string& door_name,
     std::vector<PlannerAtom>& observations,
     std::string& error_message, bool gothrough) {
   error_message = "";
@@ -358,16 +401,12 @@ bool SegbotLogicalNavigator::approachDoor(const std::string& door_name,
     bool door_approachable = false;
 
     if (!gothrough) {
-      publishNavigationMap(true);
+      publishNavigationMap(true, true);
       door_approachable = getApproachPoint(door_idx, bwi::Point2f(robot_x_, robot_y_), approach_pt, approach_yaw);
     } else {
-      publishNavigationMap(false);
+      publishNavigationMap(false, true);
       door_approachable = getThroughDoorPoint(door_idx, bwi::Point2f(robot_x_, robot_y_), approach_pt, approach_yaw);
     }
-
-    // TODO subscribe to the costmap to make sure the map gets updated and get rid of this hack!
-    // Sleep for 1 second to make sure the map gets updated.
-    boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
 
     if (door_approachable) {
       geometry_msgs::PoseStamped pose;
@@ -377,13 +416,12 @@ bool SegbotLogicalNavigator::approachDoor(const std::string& door_name,
       pose.pose.position.y = approach_pt.y;
       // std::cout << "approaching " << approach_pt.x << "," << approach_pt.y << std::endl;
       tf::quaternionTFToMsg(
-          tf::createQuaternionFromYaw(approach_yaw), pose.pose.orientation); 
+          tf::createQuaternionFromYaw(approach_yaw), pose.pose.orientation);
       bool success = executeNavigationGoal(pose);
 
       // Publish the observable fluents. Since we're likely going to sense the door, make sure the no-doors map was
       // published.
-      publishNavigationMap(false);
-      boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+      publishNavigationMap(false, true);
       senseState(observations, door_idx);
 
       return success;
@@ -395,7 +433,7 @@ bool SegbotLogicalNavigator::approachDoor(const std::string& door_name,
   }
 }
 
-bool SegbotLogicalNavigator::approachObject(const std::string& object_name, 
+bool SegbotLogicalNavigator::approachObject(const std::string& object_name,
     std::vector<PlannerAtom>& observations,
     std::string& error_message) {
 
@@ -403,7 +441,7 @@ bool SegbotLogicalNavigator::approachObject(const std::string& object_name,
   observations.clear();
 
   if (object_approach_map_.find(object_name) != object_approach_map_.end()) {
-    
+
     if (!isObjectApproachable(object_name, bwi::Point2f(robot_x_, robot_y_))) {
       error_message = "Cannot interact with " + object_name + " from the robot's current location.";
       return false;
@@ -461,8 +499,8 @@ bool SegbotLogicalNavigator::changeFloor(const std::string& new_room,
       error_message = "Location " + new_room + " has not been defined on any floor!";
       return false;
     }
-  } 
-  
+  }
+
   if (current_level_id_ == floor_name) {
     error_message = "The robot is already on " + floor_name + " (in which " + new_room + " exists)!";
     return false;
@@ -506,11 +544,11 @@ bool SegbotLogicalNavigator::changeFloor(const std::string& new_room,
   pose.header.frame_id = global_frame_id_;
   pose.pose.pose.position.x = approach_pt.x;
   pose.pose.pose.position.y = approach_pt.y;
-  tf::quaternionTFToMsg( tf::createQuaternionFromYaw(approach_yaw), pose.pose.pose.orientation); 
+  tf::quaternionTFToMsg( tf::createQuaternionFromYaw(approach_yaw), pose.pose.pose.orientation);
   pose.pose.covariance[0] = 0.1;
   pose.pose.covariance[7] = 0.1f;
   pose.pose.covariance[35] = 0.25f;
-  
+
   if (change_level_client_.call(srv)) {
     if (!srv.response.success) {
       error_message = srv.response.error_message;
@@ -530,16 +568,16 @@ bool SegbotLogicalNavigator::changeFloor(const std::string& new_room,
   }
 }
 
-bool SegbotLogicalNavigator::senseDoor(const std::string& door_name, 
+bool SegbotLogicalNavigator::senseDoor(const std::string& door_name,
     std::vector<PlannerAtom>& observations,
     std::string& error_message) {
   error_message = "";
-  size_t door_idx = 
+  size_t door_idx =
     bwi_planning_common::resolveDoor(door_name, doors_);
   if (door_idx == bwi_planning_common::NO_DOOR_IDX) {
     error_message = "Door " + door_name + " does not exist!";
     return false;
-  } 
+  }
   bool door_open = isDoorOpen(door_idx);
   PlannerAtom open;
   open.name = "open";
@@ -586,7 +624,7 @@ void SegbotLogicalNavigator::execute(const bwi_msgs::LogicalNavigationGoalConstP
 }
 
 int main(int argc, char *argv[]) {
-  
+
   ros::init(argc, argv, "segbot_logical_translator");
   ros::NodeHandle nh;
 
