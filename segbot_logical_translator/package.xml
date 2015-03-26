@@ -42,7 +42,6 @@
   <run_depend>multi_level_map_utils</run_depend>
   <run_depend>nav_msgs</run_depend>
   <run_depend>roscpp</run_depend>
-  <run_depend>segbot_gazebo</run_depend>
   <run_depend>segbot_navigation</run_depend>
   <run_depend>tf</run_depend>
   <run_depend>utexas_gdc</run_depend>
