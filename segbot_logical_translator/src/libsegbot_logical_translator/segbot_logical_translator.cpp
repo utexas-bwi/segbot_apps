@@ -67,7 +67,7 @@ namespace segbot_logical_translator {
       required_parameters.push_back("~data_directory");
     }
     if (required_parameters.size() != 0) {
-      std::string message = "SegbotLogicalTranslator: Required parameters [" + 
+      std::string message = "SegbotLogicalTranslator: Required parameters [" +
         boost::algorithm::join(required_parameters, ", ") + "] missing!";
       ROS_FATAL_STREAM(message);
       throw std::runtime_error(message);
@@ -103,7 +103,7 @@ namespace segbot_logical_translator {
     // Inflating map by 20cm should get rid of any tiny paths to the goal.
     bwi_mapper::inflateMap(0.2, map_with_doors_, inflated_map_with_doors_);
 
-    // We'll do lazy initialization of the approachable space. Just clear it for now, and we'll populate it as 
+    // We'll do lazy initialization of the approachable space. Just clear it for now, and we'll populate it as
     // necessary.
     door_approachable_space_1_.clear();
     door_approachable_space_2_.clear();
@@ -141,13 +141,13 @@ namespace segbot_logical_translator {
     start.pose.position.x = start_pt.x;
     start.pose.position.y = start_pt.y;
     start.pose.position.z = 0;
-    start.pose.orientation = tf::createQuaternionMsgFromYaw(start_yaw); 
+    start.pose.orientation = tf::createQuaternionMsgFromYaw(start_yaw);
 
     goal.pose.position.x = goal_pt.x;
     goal.pose.position.y = goal_pt.y;
     goal.pose.position.z = 0;
     goal.pose.orientation = tf::createQuaternionMsgFromYaw(goal_yaw);
-    srv.request.tolerance = 0.5 + 1e-6;
+    srv.request.tolerance = -1.0f;//0.5 + 1e-6;
 
     float min_distance = cv::norm(start_pt - goal_pt);
 
@@ -155,7 +155,7 @@ namespace segbot_logical_translator {
 
     if (!make_plan_client_initialized_) {
       ROS_INFO_STREAM("SegbotLogicalTranslator: Waiting for make_plan service..");
-      make_plan_client_ = nh_->serviceClient<nav_msgs::GetPlan>("move_base/make_plan"); 
+      make_plan_client_ = nh_->serviceClient<nav_msgs::GetPlan>("move_base/make_plan");
       make_plan_client_.waitForExistence();
       ROS_INFO_STREAM("SegbotLogicalTranslator: make_plan service found!");
       make_plan_client_initialized_ = true;
@@ -166,12 +166,12 @@ namespace segbot_logical_translator {
         if (srv.response.plan.poses.size() != 0) {
           // Valid plan received. Check if plan distance seems reasonable
           float distance = 0;
-          geometry_msgs::Point old_pt = 
+          geometry_msgs::Point old_pt =
             srv.response.plan.poses[0].pose.position;
           for (size_t i = 1; i < srv.response.plan.poses.size(); ++i) {
-            geometry_msgs::Point current_pt = 
+            geometry_msgs::Point current_pt =
               srv.response.plan.poses[i].pose.position;
-            distance += sqrt(pow(current_pt.x - old_pt.x, 2) + 
+            distance += sqrt(pow(current_pt.x - old_pt.x, 2) +
                              pow(current_pt.y - old_pt.y, 2));
             old_pt = current_pt;
           }
@@ -199,7 +199,7 @@ namespace segbot_logical_translator {
     }
   }
 
-  bool SegbotLogicalTranslator::getApproachPoint(size_t idx, 
+  bool SegbotLogicalTranslator::getApproachPoint(size_t idx,
       const bwi_mapper::Point2f& current_location,
       bwi_mapper::Point2f& point, float &yaw) {
 
@@ -225,7 +225,7 @@ namespace segbot_logical_translator {
     }
 
     // Find the approach point to which we can find a path. If both approach points can be reached, fine the approach
-    // point which is closer. 
+    // point which is closer.
     bwi_mapper::Point2d grid(bwi_mapper::toGrid(current_location, info_));
     int distance_1 = door_approachable_space_1_[idx]->getManhattanDistance(grid);
     int distance_2 = door_approachable_space_2_[idx]->getManhattanDistance(grid);
@@ -254,7 +254,7 @@ namespace segbot_logical_translator {
 
     if (object_approachable_space_.find(object_name) == object_approachable_space_.end()) {
       const geometry_msgs::Pose& object_pose = object_approach_map_[object_name];
-      const bwi_mapper::Point2d approach_pt(bwi_mapper::toGrid(bwi_mapper::Point2f(object_pose.position.x, 
+      const bwi_mapper::Point2d approach_pt(bwi_mapper::toGrid(bwi_mapper::Point2f(object_pose.position.x,
                                                                                    object_pose.position.y),
                                                                info_));
       object_approachable_space_[object_name] = boost::shared_ptr<bwi_mapper::PathFinder>(new bwi_mapper::PathFinder(inflated_map_with_doors_, approach_pt));
@@ -264,7 +264,7 @@ namespace segbot_logical_translator {
     return object_approachable_space_[object_name]->pathExists(grid_pt);
   }
 
-  bool SegbotLogicalTranslator::getThroughDoorPoint(size_t idx, 
+  bool SegbotLogicalTranslator::getThroughDoorPoint(size_t idx,
       const bwi_mapper::Point2f& current_location,
       bwi_mapper::Point2f& point, float& yaw) {
 
@@ -277,7 +277,8 @@ namespace segbot_logical_translator {
       return false;
     }
 
-    bwi_mapper::Point2f approach_point; 
+    bwi_mapper::Point2f approach_point;
+
     float unused_approach_yaw;
     bool door_approachable = getApproachPoint(idx, current_location, approach_point, unused_approach_yaw);
     if (door_approachable) {
