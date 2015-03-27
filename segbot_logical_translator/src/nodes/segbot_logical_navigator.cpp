@@ -272,8 +272,8 @@ void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, 
 
   size_t num_doors = getNumDoors();
   bwi::Point2f robot_loc(robot_x_, robot_y_);
-  bool first_facing = false;
-  bool first_beside = false;
+  bool beside_found = false;
+  size_t beside_idx = NO_DOOR_IDX;
   size_t facing_idx = NO_DOOR_IDX;
 
   for (size_t door = 0; door < num_doors; ++door) {
@@ -289,35 +289,46 @@ void SegbotLogicalNavigator::senseState(std::vector<PlannerAtom>& observations, 
       continue;
     }
 
-    bool facing_door = !first_facing &&
+    bool facing_door =
       isRobotFacingDoor(robot_loc, robot_yaw_, door_proximity_distance_, door);
-    bool beside_door = !first_beside &&
+    bool beside_door = !beside_found &&
       isRobotBesideDoor(robot_loc, robot_yaw_, door_proximity_distance_, door);
-    if (!facing_door) {
-      PlannerAtom n_facing;
-      n_facing.name = "-facing";
-      n_facing.value.push_back(getDoorString(door));
-      observations.push_back(n_facing);
-    } else {
-      PlannerAtom facing;
-      facing.name = "facing";
-      facing.value.push_back(getDoorString(door));
-      observations.push_back(facing);
-      first_facing = true;
-      facing_idx = door_idx;
+
+    if (facing_door) {
+      facing_idx = door;
+      beside_idx = door;
+      break;
     }
-    if (!beside_door) {
-      PlannerAtom n_beside;
-      n_beside.name = "-beside";
-      n_beside.value.push_back(getDoorString(door));
-      observations.push_back(n_beside);
-    } else {
-      PlannerAtom beside;
-      beside.name = "beside";
-      beside.value.push_back(getDoorString(door));
-      observations.push_back(beside);
-      first_beside = true;
+
+    if (beside_door) {
+      beside_idx = door;
+      beside_found = true;
     }
+  }
+
+  for (size_t door = 0; door < num_doors; ++door) {
+
+    if ((doors_[door].approach_names[0] != getLocationString(location_idx)) &&
+        (doors_[door].approach_names[1] != getLocationString(location_idx))) {
+      // We can't sense the current door since we're not in a location that this door connects.
+      continue;
+    }
+
+    PlannerAtom beside_door;
+    beside_door.value.push_back(getDoorString(door));
+    beside_door.name = "beside";
+    if (beside_idx != door) {
+      beside_door.name = "-" + beside_door.name;
+    }
+    observations.push_back(beside_door);
+
+    PlannerAtom facing_door;
+    facing_door.value.push_back(getDoorString(door));
+    facing_door.name = "facing";
+    if (facing_idx != door) {
+      facing_door.name = "-" + facing_door.name;
+    }
+    observations.push_back(facing_door);
   }
 
   // If we are facing a door, also sense whether it is open
