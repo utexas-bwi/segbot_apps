@@ -2,6 +2,11 @@
 Changelog for package segbot_apps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2015-03-24)
+------------------
+* fixed some catkin_lint errors.
+* Contributors: Piyush Khandelwal
+
 0.2.1 (2014-04-22)
 ------------------
 * Add segbot_gui and segbot_logical_translator dependencies (`#16

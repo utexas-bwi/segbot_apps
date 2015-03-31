@@ -2,6 +2,20 @@
 Changelog for package segbot_logical_translator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2015-03-24)
+------------------
+* completed migration of LogicalNavigationAction to bwi_msgs in bwi_common repository.
+* fixed bug in segbot_logical_translator where it would try and analyze facing/beside for doors not connected to the current location.
+* modified the segbot_logical_navigator to use action service instead of services.
+* read map file and data directory using multimap
+* some navigation changes for more robust navigation.
+* use correct approachable area for objects and doors.
+* added multimap support.
+* making the logical navigator advertise execute_logical_goal after the first pose has been received (github issue `#18 <https://github.com/utexas-bwi/segbot_apps/issues/18>`_)
+* turning annoying prints into ROS_INFOs and removing more annoying ones.
+* Made the door checker test for the door to be open 3 times before going through. Works much better. Removed recovery behavior.
+* Contributors: Matteo Leonetti, Piyush Khandelwal
+
 0.2.1 (2014-04-22)
 ------------------
 
