@@ -2,8 +2,8 @@
 Changelog for package segbot_navigation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.1 (2015-03-31)
+------------------
 * Allow explicit amcl laser max range paramter instantiation. closes `#31 <https://github.com/utexas-bwi/segbot_apps/issues/31>`_.
 * Closes `#29 <https://github.com/utexas-bwi/segbot_apps/issues/29>`_
   - Get latest version of move_base to get fix introduced in https://github.com/ros-planning/navigation/pull/295

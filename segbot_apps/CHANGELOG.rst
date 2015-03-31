@@ -2,8 +2,8 @@
 Changelog for package segbot_apps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.1 (2015-03-31)
+------------------
 * added architecture_independent flag to segbot_apps metapackage. Closes `#24 <https://github.com/utexas-bwi/segbot_apps/issues/24>`_
 * Contributors: Piyush Khandelwal
 

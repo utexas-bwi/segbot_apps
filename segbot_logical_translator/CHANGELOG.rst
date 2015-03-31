@@ -2,8 +2,8 @@
 Changelog for package segbot_logical_translator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.1 (2015-03-31)
+------------------
 * Closes `#29 <https://github.com/utexas-bwi/segbot_apps/issues/29>`_
   - Get latest version of move_base to get fix introduced in https://github.com/ros-planning/navigation/pull/295
   This allows setting tolerance to 0 when calling make_plan from segbot_logical_translator.
