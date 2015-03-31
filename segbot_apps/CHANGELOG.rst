@@ -2,6 +2,11 @@
 Changelog for package segbot_apps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* added architecture_independent flag to segbot_apps metapackage. Closes `#24 <https://github.com/utexas-bwi/segbot_apps/issues/24>`_
+* Contributors: Piyush Khandelwal
+
 0.3.0 (2015-03-24)
 ------------------
 * fixed some catkin_lint errors.

@@ -2,6 +2,18 @@
 Changelog for package segbot_navigation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Allow explicit amcl laser max range paramter instantiation. closes `#31 <https://github.com/utexas-bwi/segbot_apps/issues/31>`_.
+* Closes `#29 <https://github.com/utexas-bwi/segbot_apps/issues/29>`_
+  - Get latest version of move_base to get fix introduced in https://github.com/ros-planning/navigation/pull/295
+  This allows setting tolerance to 0 when calling make_plan from segbot_logical_translator.
+  - Don't use any tolerance when testing whether a door was open or not.
+  - Don't clear costmap around robot when testing for an open door.
+* Increase local costmap size to 8m x 8m. Increasing obstacle and raytrace range for primary laser to match. Closes `#26 <https://github.com/utexas-bwi/segbot_apps/issues/26>`_.
+* updated planner frequency to 1.0. Closes `#25 <https://github.com/utexas-bwi/segbot_apps/issues/25>`_
+* Contributors: Piyush Khandelwal
+
 0.3.0 (2015-03-24)
 ------------------
 * a number of navigation changes to allow for correct navigation with multiple namespaced robots, and use the multimap.

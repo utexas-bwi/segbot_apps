@@ -2,6 +2,18 @@
 Changelog for package segbot_logical_translator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Closes `#29 <https://github.com/utexas-bwi/segbot_apps/issues/29>`_
+  - Get latest version of move_base to get fix introduced in https://github.com/ros-planning/navigation/pull/295
+  This allows setting tolerance to 0 when calling make_plan from segbot_logical_translator.
+  - Don't use any tolerance when testing whether a door was open or not.
+  - Don't clear costmap around robot when testing for an open door.
+* fixed issue where the logical translator was returning beside and facing for two different doors. closes `#30 <https://github.com/utexas-bwi/segbot_apps/issues/30>`_.
+* segbot_logical_navigator now checks for costmap updates to test whether the map has changed between door/no-door versions. closes `#28 <https://github.com/utexas-bwi/segbot_apps/issues/28>`_
+* removed segbot_gazebo dependency. closes `#27 <https://github.com/utexas-bwi/segbot_apps/issues/27>`_.
+* Contributors: Piyush Khandelwal
+
 0.3.0 (2015-03-24)
 ------------------
 * completed migration of LogicalNavigationAction to bwi_msgs in bwi_common repository.
