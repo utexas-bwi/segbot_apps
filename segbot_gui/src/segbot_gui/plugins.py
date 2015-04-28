@@ -17,9 +17,11 @@ class QuestionDialogPlugin(Plugin):
         # Give QObjects reasonable names
         self.setObjectName('QuestionDialogPlugin')
 
+        font_size = rospy.get_param("~font_size", 40)
+
         # Create QWidget
         self._widget = QWidget()
-        self._widget.setFont(QFont("Times", 40, QFont.Bold))
+        self._widget.setFont(QFont("Times", font_size, QFont.Bold))
         self._layout = QVBoxLayout(self._widget)
         self._text_browser = QTextBrowser(self._widget)
         self._layout.addWidget(self._text_browser)
@@ -30,7 +32,7 @@ class QuestionDialogPlugin(Plugin):
         # layout.addWidget(self.button)
         self._widget.setObjectName('QuestionDialogPluginUI')
         if context.serial_number() > 1:
-            self._widget.setWindowTitle(self._widget.windowTitle() + 
+            self._widget.setWindowTitle(self._widget.windowTitle() +
                                         (' (%d)' % context.serial_number()))
         context.add_widget(self._widget)
 
@@ -78,7 +80,7 @@ class QuestionDialogPlugin(Plugin):
                     QuestionDialogRequest.NO_RESPONSE, "")
             self.response_ready = True
         elif req.type == QuestionDialogRequest.CHOICE_QUESTION:
-            for index, options in enumerate(req.options): 
+            for index, options in enumerate(req.options):
                 button = QPushButton(options, self._widget)
                 button.clicked.connect(partial(self.handle_button, index))
                 self._button_layout.addWidget(button)
