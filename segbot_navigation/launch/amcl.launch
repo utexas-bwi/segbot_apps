@@ -20,7 +20,7 @@
   <arg name="odom_alpha4" default="0.4" />
   <arg name="odom_alpha5" default="0.4" />
 
-  <arg name="laser_max_range" default="4.0" />
+  <arg name="laser_max_range" default="20.0" />
 
   <!-- run amcl -->
   <node pkg="amcl" type="amcl" name="amcl">
